@@ -175,6 +175,52 @@ rest pose 躺倒或倒置（加 `--rest_rotation x180` 摆正）、训练里稀�
 后腿按腿标签（`Thigh` / `Shin` / `Foot` / `Toe`），朝向对仍取左右大腿。
 完整规范在 UniMate 的 `data_process/rig_preprocess/AGENTS.md`，改标签前先读它。
 
+### 5.5 四足检查清单（实测数据）
+
+拿两个四足验过：一个机器人（`unitree_go2`，骨头是 `FR_hip` / `RL_calf` 这类编码名），
+一个动物（Khronos glTF 示例的 Fox，骨头是 `b_RightUpperArm_06` / `b_LeftLeg01_015`）。
+
+**标签质量**（`--annotate rule`，不走 LLM）：
+
+| 资产 | 关节 | 结果 |
+|---|---|---|
+| unitree_go2 | 18 | 17/18 与官方标注一致；唯一分歧是根骨 `Body` vs `Root`，两个都是合法词 |
+| Fox | 24 → 22 | 22 个标签全部来自 template 匹配（training rig 同构），0 个 flag |
+
+**两处要人工确认**（两个资产都出现了）：
+
+1. **朝向对**。规范首选左右大腿，但规则标注在 Go2 上选了前髋（官方标注自己也带告警），
+   在 Fox 上选了前肢上臂（`source=upper arm`）。左右轴是对的，能用；
+   但如果动作明显朝侧面走，用 `--face_r` / `--face_l` 显式指定**后腿大腿**。
+2. **脚趾没拆开**。Fox 的 `b_LeftFoot01_017` 与 `b_LeftFoot02_018` 都被标成 `Left Foot`。
+   规范里更合适的是 `Foot` + `Toe`。影响不大，但会丢一点踝部细节。
+
+**权重必须换成通用版**。默认配置是人体专用（22 关节固定），四足会被判成"不是 Mixamo 绑定"。
+v1.0.0.5 起管线会直接说清楚并退出，提示这样跑：
+
+```bash
+bash scripts/unimate-pipeline.sh --input fox.glb --exp-dir models/unimate_uniml3d_f60_v3
+```
+
+**动作质量先用数字看，再决定要不要看视频**：
+
+```bash
+python tools/gait_report.py --samples outputs/samples/Fox
+```
+
+输出四条腿的竖直摆幅 + 两两相位相关系数，并给一句判定：
+
+| 判定 | 含义 |
+|---|---|
+| 对角同相 + 左右反相 | 小跑 / 快走，正常 |
+| 前后各自同相 | 袭步 / 跳跃式，跑动正常 |
+| 相位很弱 | 不像成型步态，多采几条挑 |
+| 有腿几乎不动 / 几乎不动 | 这条废了，换一条 |
+
+Fox 实测 4 条（2 prompt × 2 reps）：walk 一条是「对角同相 +0.59 / 左右 -0.78」的成型步态，
+另一条整体强度只有 0.006（废条）；run 两条都是袭步（左右 +0.95 / +0.61）。
+结论：**四足同样要按 `--reps` 多采、按指标挑**，不要指望第一条就能用。
+
 ## 6. 从零到出片
 
 前提：**资产已经绑定好**（没绑定先看第 5 节）。

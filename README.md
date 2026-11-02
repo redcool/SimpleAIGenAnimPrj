@@ -36,6 +36,8 @@ bash scripts/unimate-simplify.sh --input /path/to/model.fbx --mode mixamo
 
 # 4. 一条龙：体检 -> 精简 -> 打标签 -> 采样 -> 导出
 bash scripts/unimate-pipeline.sh --input /path/to/model.fbx --reps 3
+#    四足/动物/机器人（非 Mixamo 22 关节人体）要换成通用权重：
+#    ... --exp-dir models/unimate_uniml3d_f60_v3
 
 # 5. 循环化 + 打包 Unity
 bash scripts/unimate-loop.sh --samples <采样目录> --name <资产名> --rig <资产.glb>
@@ -60,7 +62,8 @@ AIGenAnimPrj/
 │   ├── make_loop.py         起点 + 周期一起搜，剪切 + 接缝淡化
 │   ├── loop_close.py        模型闭环（让模型把末帧收回首帧）
 │   ├── flatten_root.py      拉平根位移，变原地动作
-│   └── bundle_unity.py      整理成 Unity 目录 + 导入说明
+│   ├── bundle_unity.py      整理成 Unity 目录 + 导入说明
+│   └── gait_report.py       多足动作的步态速查（摆幅 + 相位），不看视频先筛
 ├── models/      ★ 权重（不入库，见 AGENTS.md 第 2 节）
 ├── outputs/     ★ rig 产物 + 采样结果（不入库，见 AGENTS.md 第 4 节）
 ├── dataset/     ★ UniML3D 数据集，可选（不入库，见 AGENTS.md 第 3 节）

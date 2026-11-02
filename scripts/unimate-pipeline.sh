@@ -90,6 +90,29 @@ INSPECT_JSON=$TMP/inspect.json
 BONES=$("$PY" -c "import json;print(json.load(open('$INSPECT_JSON'))['bone_count'])" 2>/dev/null)
 [ -n "$BONES" ] || BONES=-1
 echo "  关节数: $BONES（目标 $TARGET）"
+
+# 人体专用权重只吃 Mixamo 22 关节。不是 Mixamo 绑定就早点说清楚，
+# 否则会一路走到"精简"步骤才报"这不是标准 Mixamo 绑定"，用户还得自己猜怎么办。
+if printf '%s' "$EXP_DIR" | grep -qi mixamo && [ "$BONES" -gt 22 ]; then
+  if ! "$PY" -c "
+import json, sys
+bones = {b['name'].split(':')[-1] for b in json.load(open('$INSPECT_JSON'))['bones']}
+core = {'Hips','Spine','Spine1','Spine2','Neck','Head',
+        'LeftShoulder','LeftArm','LeftForeArm','LeftHand',
+        'RightShoulder','RightArm','RightForeArm','RightHand',
+        'LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase',
+        'RightUpLeg','RightLeg','RightFoot','RightToeBase'}
+missing = sorted(core - bones)
+print('缺:', ', '.join(missing) if missing else '(无)')
+sys.exit(0 if not missing else 1)
+" >/dev/null 2>&1; then
+    echo >&2
+    echo "这个资产不是 Mixamo 22 关节绑定（缺核心骨），人体专用权重用不了。" >&2
+    echo "它大概率是四足/动物/机器人，请改用通用权重：" >&2
+    echo "  bash scripts/unimate-pipeline.sh --input <同一个资产> --exp-dir models/unimate_uniml3d_f60_v3 ..." >&2
+    exit 3
+  fi
+fi
 [ "$STOP_AFTER" = "inspect" ] && { echo; echo "已停止在体检步骤"; exit 0; }
 
 # ---------------- 2. 精简（只在超标时） ----------------
