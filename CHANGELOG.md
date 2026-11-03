@@ -3,6 +3,20 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.0.8
+
+- 新增 `scripts/unimate-import-clip.sh`：把动作库片段接到自己的角色上（精简骨架 →
+  转特征 → 关节顺序对齐 → 驱动导出），一条命令跑完。
+- 新增 `tools/remap_motion_joints.py`：同一套骨架不同导出时，左右兄弟骨顺序可能相反，
+  按骨名把关节轴重排到目标骨架（UniMate 的 check_canonical_order 会直接报错）。
+- 实测 Mixamo 的 Sprinting Forward Roll（36 帧）驱动 X Bot：根骨累计 484°、主轴横向、
+  髋部 0.135~0.843，是真翻滚。两版对比放在 outputs/samples/roll_compare/。
+- `scripts/_env.sh` 的 abs_path 依次在 当前目录 / 工程根 / 工程上一级 查找，
+  这样 Arts/ 这类放在工程外的素材也能直接传相对路径。
+- `docs/动作能力清单.md` 新增第 5 节：能不能靠继续训练补上 ——
+  加 Mixamo 数据没用（已在训练集里）；表示层限制（整圈翻转）加多少数据都学不会，
+  必须改特征并重训；真正划算的是稀有但可表示的类别（手势、爬行）做微调。
+
 ## 1.0.0.7
 
 - 新增 `docs/动作能力清单.md`：基于 UniML3D 全部 13,769 条 caption 统计出 16 个类别及占比，

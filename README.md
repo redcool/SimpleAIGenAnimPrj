@@ -66,7 +66,8 @@ AIGenAnimPrj/
 │   ├── gait_report.py       多足动作的步态速查（摆幅 + 相位），不看视频先筛
 │   ├── roll_check.py        判断有没有真翻过去（累计转角 + 主轴）
 │   ├── add_root_spin.py     给根骨补一圈旋转（混合方案）
-│   └── caption_stats.py     查某个动作在训练分布里的占比
+│   ├── caption_stats.py     查某个动作在训练分布里的占比
+│   └── remap_motion_joints.py  动作库片段接到自己角色时，按骨名对齐关节顺序
 ├── models/      ★ 权重（不入库，见 AGENTS.md 第 2 节）
 ├── outputs/     ★ rig 产物 + 采样结果（不入库，见 AGENTS.md 第 4 节）
 ├── dataset/     ★ UniML3D 数据集，可选（不入库，见 AGENTS.md 第 3 节）

@@ -43,7 +43,14 @@ from_project() {
     *)  printf '%s/%s' "$PIPELINE_HOME" "$1" ;;
   esac
 }
-abs_path() { readlink -f "$1" 2>/dev/null || printf '%s/%s' "$PWD" "$1"; }
+# 相对路径依次在 当前目录 / 工程根 / 工程上一级 里找（Arts 这类素材常放在工程外）
+abs_path() {
+  case "$1" in /*) printf '%s' "$1"; return 0 ;; esac
+  for base in "$PWD" "$PIPELINE_HOME" "$PIPELINE_HOME/.."; do
+    if [ -e "$base/$1" ]; then readlink -f "$base/$1"; return 0; fi
+  done
+  readlink -f "$1" 2>/dev/null || printf '%s/%s' "$PWD" "$1"
+}
 
 EXP_DIR="$(from_project "${EXP_DIR:-${UNIMATE_EXP:-models/unimate_mixamo_f60_v2}}")"
 SAMPLES_HOME="$(from_project "${SAMPLES_HOME:-${UNIMATE_SAMPLES:-outputs/samples}}")"

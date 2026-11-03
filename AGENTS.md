@@ -262,6 +262,32 @@ docs/动作能力清单.md）：
 根骨旋转又被朝向顶替）。翻滚在数据里有 191 条也生成不出来，要用
 `tools/add_root_spin.py` 程序补，或直接用 Mixamo 的 `Dive_Roll` 这类现成片段。
 
+### 5.8 外部动作库接入（模型做不到时的第一选择）
+
+库里有的动作，直接用；模型做不到的动作大多属于这一类（翻滚、攀爬、受击倒地）。
+
+一条命令（片段与角色同一套骨架时）：
+
+```bash
+bash scripts/unimate-import-clip.sh \
+    --clip "Arts/Sprinting Forward Roll.fbx" \
+    --rig outputs/rig/X_Bot --name X_Bot \
+    --out outputs/samples/roll_lib_test
+```
+
+内部走四步：
+
+1. `simplify_rig.py --mode mixamo` 把片段骨架削到目标关节数；
+2. `rig_preprocess --save_clips` 把片段转成 UniMate 特征 npz；
+3. `remap_motion_joints.py` 按骨名把关节顺序对齐到角色
+   （同一套骨架不同导出，左右兄弟骨顺序可能相反，UniMate 会报
+   "joint order is not the motion's"）；
+4. 用角色的 cond + `run_animate_motion.sh` 驱动导出 GLB/FBX。
+
+实测：Mixamo 的 `Sprinting Forward Roll`（36 帧）接到 X Bot 上，
+根骨累计转角 484°、主轴横向、髋部 0.135~0.843 —— 是真正的翻滚。
+两个版本（库 vs 模型+程序补）在 `outputs/samples/roll_compare/` 可以直接对比。
+
 ## 6. 从零到出片
 
 前提：**资产已经绑定好**（没绑定先看第 5 节）。
