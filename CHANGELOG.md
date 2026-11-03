@@ -3,6 +3,18 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.0.6
+
+- 新增 `tools/roll_check.py`：判断一段动作有没有真翻过去（根骨累计转角 + 主轴方向）。
+- 新增 `tools/add_root_spin.py`：给已有动画的根骨叠加旋转（前滚翻 / 转身 / 侧翻），
+  世界侧旋转换算到骨骼局部，支持圈数、轴向、缓入缓出。
+- `AGENTS.md` 新增 5.6：实测所有生成动作的根骨偏转 ≤26° 且只会偏航，
+  所以 360° 翻滚模型做不出来（四种说法 8 条采样，累计 9°~126°），给了混合方案。
+- 修 `unimate-sample.sh` / `unimate-animate.sh`：`--asset`、`--output_dir`、
+  `<采样目录>` 这类路径参数先按本工程根解析再转绝对路径。
+  原来传相对路径会被 UniMate 当成自己仓库里的路径（报 no such directory /
+  unknown DATASET_TYPE），这是实际操作中最容易踩的一脚。
+
 ## 1.0.0.5
 
 - 新增 `tools/gait_report.py`：从 .npy 直接算四条腿的竖直摆幅和相位相关系数，

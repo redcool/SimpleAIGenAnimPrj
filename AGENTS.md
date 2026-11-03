@@ -221,6 +221,28 @@ Fox 实测 4 条（2 prompt × 2 reps）：walk 一条是「对角同相 +0.59 /
 另一条整体强度只有 0.006（废条）；run 两条都是袭步（左右 +0.95 / +0.61）。
 结论：**四足同样要按 `--reps` 多采、按指标挑**，不要指望第一条就能用。
 
+### 5.6 模型做不出的动作：整圈翻转
+
+实测：所有生成动作里根骨相对首帧的最大偏转只有 **26°**，旋转轴永远是竖直方向。
+也就是说根节点旋转通道是"朝向"（偏航），训练数据里没有俯仰/侧倾翻转。
+
+结论：**360° 前滚翻、后空翻、侧翻这类动作，模型生成不出来**，换 prompt 也没用
+（试过 forward roll / combat roll / rolls on the ground / rolls and stands up 四种说法，
+累计转角只有 9°~126°）。
+
+补救：拿模型生成的"倒在地上"的片段，导出前用 `tools/add_root_spin.py` 补一圈：
+
+```bash
+PYTHONPATH=tools python tools/add_root_spin.py --input <FBX 或目录> \
+    --turns 1 --axis lateral --ease smoothstep --formats fbx,glb
+```
+
+- `--axis lateral` 前/后滚翻，`vertical` 原地转身，`forward` 侧翻
+- `--turns 0.75` 转不满一圈，低姿前滚有时更自然
+- 这是"模型出姿态 + 程序补旋转"的混合方案，观感要人工确认，别当成模型能力
+
+判断一段动作里有没有真的翻转，用 `tools/roll_check.py`（看累计转角与主轴）。
+
 ## 6. 从零到出片
 
 前提：**资产已经绑定好**（没绑定先看第 5 节）。
