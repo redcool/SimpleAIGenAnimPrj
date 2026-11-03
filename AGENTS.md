@@ -243,6 +243,25 @@ PYTHONPATH=tools python tools/add_root_spin.py --input <FBX 或目录> \
 
 判断一段动作里有没有真的翻转，用 `tools/roll_check.py`（看累计转角与主轴）。
 
+### 5.7 动作能不能做：先查分布
+
+模型只做训练分布内的动作。判定依据是 caption 占比（13,769 条统计，见
+docs/动作能力清单.md）：
+
+| caption 里的占比 | 判断 | 做法 |
+|---|---|---|
+| > 5% | 分布中心 | 直接用 |
+| 1% ~ 5% | 学过但稀有 | `--reps 6` 以上 + 指标挑（gait_report / roll_check / 循环报告） |
+| < 1% | 边缘 | 暴力多采，同时准备替代方案 |
+| 查不到 | 没学过 | 别在 prompt 上耗，走替代方案 |
+
+自查：`python tools/caption_stats.py --meta tmp/meta --grep <动作词>`
+（元数据几 MB，不用下 88 GB 数据集）。
+
+已知的结构性边界：**整圈翻转不可表达**（根朝向由关节位置水平投影算出，只含偏航；
+根骨旋转又被朝向顶替）。翻滚在数据里有 191 条也生成不出来，要用
+`tools/add_root_spin.py` 程序补，或直接用 Mixamo 的 `Dive_Roll` 这类现成片段。
+
 ## 6. 从零到出片
 
 前提：**资产已经绑定好**（没绑定先看第 5 节）。

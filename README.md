@@ -63,11 +63,14 @@ AIGenAnimPrj/
 │   ├── loop_close.py        模型闭环（让模型把末帧收回首帧）
 │   ├── flatten_root.py      拉平根位移，变原地动作
 │   ├── bundle_unity.py      整理成 Unity 目录 + 导入说明
-│   └── gait_report.py       多足动作的步态速查（摆幅 + 相位），不看视频先筛
+│   ├── gait_report.py       多足动作的步态速查（摆幅 + 相位），不看视频先筛
+│   ├── roll_check.py        判断有没有真翻过去（累计转角 + 主轴）
+│   ├── add_root_spin.py     给根骨补一圈旋转（混合方案）
+│   └── caption_stats.py     查某个动作在训练分布里的占比
 ├── models/      ★ 权重（不入库，见 AGENTS.md 第 2 节）
 ├── outputs/     ★ rig 产物 + 采样结果（不入库，见 AGENTS.md 第 4 节）
 ├── dataset/     ★ UniML3D 数据集，可选（不入库，见 AGENTS.md 第 3 节）
-├── docs/        运行记录（含本机踩过的坑）
+├── docs/        运行记录 + 动作能力清单（哪些动作能做、做不到怎么办）
 ├── tmp/  .trash/  临时文件 / 回收站（不入库）
 ├── AGENTS.md    agent 工作手册（数据在哪、怎么下、有什么坑）
 └── config.example.env
