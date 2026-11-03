@@ -55,7 +55,7 @@ wsl -e bash /mnt/h/..../AIGenAnimPrj/scripts/unimate-pipeline.sh --input "..."
 AIGenAnimPrj/
 ├── scripts/     命令行入口（bash）；_env.sh 读 config.env、导出绝对路径
 │                unimate-pipeline / unimate-loop（模型产线）
-│                unimate-import-clip（动作库产线）
+│                unimate-import-clip（动作库产线）/ unimate-import-batch（批量）
 ├── tools/       实际干活的 Python
 │   ├── pipeline_config.py   读 config.env、解析路径、版本校验
 │   ├── unimate_api.py       唯一 import UniMate 内部的地方
@@ -71,11 +71,12 @@ AIGenAnimPrj/
 │   ├── caption_stats.py     查某个动作在训练分布里的占比
 │   ├── remap_motion_joints.py  动作库片段接到自己角色时，按骨名对齐关节顺序
 │   ├── verify_anim.py       核对导出动画：整体翻转 + 四肢动作分开量
-│   └── action_meta.py       写统一的 action.json（两条产线共用）
+│   ├── action_meta.py       写统一的 action.json（两条产线共用）
+│   └── action_index.py      扫 outputs/ 生成动作索引表
 ├── models/      ★ 权重（不入库，见 AGENTS.md 第 2 节）
 ├── outputs/     ★ rig 产物 + 采样结果（不入库，见 AGENTS.md 第 4 节）
 ├── dataset/     ★ UniML3D 数据集，可选（不入库，见 AGENTS.md 第 3 节）
-├── docs/        运行记录 + 动作能力清单 + 动作产线规范
+├── docs/        运行记录 + 动作能力清单 + 动作产线规范 + 待补动作清单
 ├── tmp/  .trash/  临时文件 / 回收站（不入库）
 ├── AGENTS.md    agent 工作手册（数据在哪、怎么下、有什么坑）
 └── config.example.env

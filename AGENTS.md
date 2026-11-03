@@ -345,7 +345,16 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 
 每个动作目录都要有 `action.json`（`tools/action_meta.py` 写）：
 记 `source`（model/library）、`origin`（prompt 或片段名）、`loopable`、`in_place`、`qa`。
-完整规范（决策流程、命名、闸门、Unity 约定）见 `docs/动作产线规范.md`。
+完整规范（决策流程、命名、闸门、Unity 约定）见 `docs/动作产线规范.md`；
+哪些动作该从库补、优先级怎么排，见 `docs/待补动作清单.md`。
+
+批量接入 + 索引：
+
+```bash
+bash scripts/unimate-import-batch.sh --clips Arts/mixamo/rolls \
+    --rig outputs/rig/X_Bot --name X_Bot --expect roll --prefix act_
+PYTHONPATH=tools python tools/action_index.py
+```
 
 ## 10. 改动本工程时
 
