@@ -334,7 +334,20 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 | 生成的动作"抖"或"不像" | prompt 风格不对 / cfg 太低 | 照 `An object ...` 句式；`--cfg_scale 5~7` |
 | 循环处一跳 | 没做循环化 | 走 `unimate-loop.sh`（有周期就剪，没周期用 `--close`） |
 
-## 9. 改动本工程时
+## 9. 两条产线与输出契约
+
+动作来源只有两类，**都要在 `AIGenAnimPrj` 里落成同一种产物**：
+
+| 产线 | 命令 | 适用 |
+|---|---|---|
+| A 模型生成 | `unimate-pipeline.sh` → `unimate-loop.sh` | 训练分布内（≥1% caption 占比） |
+| B 动作库接入 | `unimate-import-clip.sh` | 分布外、库里有的（翻滚/攀爬/受击） |
+
+每个动作目录都要有 `action.json`（`tools/action_meta.py` 写）：
+记 `source`（model/library）、`origin`（prompt 或片段名）、`loopable`、`in_place`、`qa`。
+完整规范（决策流程、命名、闸门、Unity 约定）见 `docs/动作产线规范.md`。
+
+## 10. 改动本工程时
 
 - 改完跑一遍 `bash -n`（脚本）和 `python -m py_compile`（工具）。
 - 对上游的调用只允许出现在 `tools/unimate_api.py`；其它文件不许 `import unimate`。

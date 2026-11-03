@@ -64,9 +64,9 @@ def base_name(bone_name: str) -> str:
     return bone_name.split(":")[-1]
 
 
-def unique_path(path: str) -> str:
-    """同名文件不覆盖：已存在就加 _v2、_v3……（工程纪律第 4 条）。"""
-    if not os.path.exists(path):
+def unique_path(path: str, force: bool = False) -> str:
+    """同名文件不覆盖：已存在就加 _v2、_v3……（工程纪律第 4 条）。force 时直接覆盖。"""
+    if force or not os.path.exists(path):
         return path
     root, ext = os.path.splitext(path)
     m = re.match(r"^(.*)_v(\d+)$", root)
@@ -296,6 +296,8 @@ def main() -> None:
                     help=f"删完还超这个数就报错（默认 {MAX_JOINTS_DEFAULT}）")
     ap.add_argument("--no-animation", action="store_true", help="导出时不带动画")
     ap.add_argument("--report", default=None, help="报告 JSON 路径")
+    ap.add_argument("--force", action="store_true",
+                    help="允许覆盖输出文件（默认同名不覆盖，自动加 _v2）")
     ap.add_argument("--dry-run", action="store_true", help="只打印计划，不导出")
     args = ap.parse_args()
 
@@ -316,7 +318,7 @@ def main() -> None:
         if args.format in ("fbx", "both"):
             outs.append(os.path.join(out_dir, f"{safe}_simplified.fbx"))
         outputs = outs
-    outputs = [unique_path(p) for p in outputs]
+    outputs = [unique_path(p, args.force) for p in outputs]
 
     log(f"== 读取 {src}")
     import_asset(src)

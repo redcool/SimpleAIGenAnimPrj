@@ -18,10 +18,14 @@
 #   --mode   simplify 的模式：mixamo（默认）| drop | keep
 #   --drop   配合 --mode drop 的正则
 #   --keep   配合 --mode keep 的正则
-#   --dry-run 只打印命令
+#   --expect motion|roll  质量闸门：motion=四肢得在动（默认），roll=必须整圈翻
+#   --action <名字>       动作名，默认由片段名推出
+#   --loopable            标记为可循环动作（写进 action.json）
+#   --dry-run             只打印命令
 source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/_env.sh"
 
 CLIP=""; RIG=""; NAME=""; OUT=""; MODE="mixamo"; DROPS=(); KEEPS=(); DRY=0
+EXPECT="motion"; ACTION=""; LOOPABLE=0
 
 need_val() { [ $# -ge 2 ] || { echo "参数 $1 需要一个值" >&2; exit 2; }; }
 while [ $# -gt 0 ]; do
@@ -31,6 +35,9 @@ while [ $# -gt 0 ]; do
     --name)   need_val "$@"; NAME="$2"; shift 2 ;;
     --out)    need_val "$@"; OUT="$2"; shift 2 ;;
     --mode)   need_val "$@"; MODE="$2"; shift 2 ;;
+    --expect) need_val "$@"; EXPECT="$2"; shift 2 ;;
+    --action) need_val "$@"; ACTION="$2"; shift 2 ;;
+    --loopable) LOOPABLE=1; shift ;;
     --drop)   need_val "$@"; DROPS+=("$2"); shift 2 ;;
     --keep)   need_val "$@"; KEEPS+=("$2"); shift 2 ;;
     --dry-run) DRY=1; shift ;;
@@ -65,7 +72,9 @@ echo "============================================================"
 
 echo
 echo "== [1/4] 精简片段骨架到 --mode $MODE =="
-SIM=("$TOOLS/simplify_rig.py" --input "$CLIP" --mode "$MODE" --format glb)
+# 精简结果放进工作目录并用固定名，避免每次都往素材目录里堆 _v2/_v3
+SIM=("$TOOLS/simplify_rig.py" --input "$CLIP" --mode "$MODE" --format glb \
+     --output "$WORK/simplified.glb" --force)
 for d in "${DROPS[@]:-}"; do [ -n "$d" ] && SIM+=(--drop "$d"); done
 for k in "${KEEPS[@]:-}"; do [ -n "$k" ] && SIM+=(--keep "$k"); done
 if [ "$DRY" = 1 ]; then echo "  [dry-run] $PY ${SIM[*]}"; SIM_OUT="$CLIP"; else
@@ -81,7 +90,7 @@ if [ "$DRY" = 1 ]; then
 else
   ( cd "$UNIMATE_HOME" && "$PY" -m data_process.rig_preprocess run \
       --input "$SIM_OUT" --output_dir "$WORK" --name "$clip_key" \
-      --annotate rule --no_review --save_clips ) > "$PIPELINE_HOME/tmp/import_clip.log" 2>&1 \
+      --annotate rule --no_review --save_clips --overwrite ) > "$PIPELINE_HOME/tmp/import_clip.log" 2>&1 \
     || { echo "rig_preprocess 失败，看 tmp/import_clip.log" >&2; tail -5 "$PIPELINE_HOME/tmp/import_clip.log" >&2; exit 1; }
 fi
 NPZ=$(ls "$WORK/motions/"*.npz 2>/dev/null | head -1)
@@ -106,6 +115,52 @@ else
     ASSET=export CANONICAL= EXTRA_BONES_STRATEGY=merge \
     bash data_process/scripts/run_animate_motion.sh general ) 2>&1 \
     | grep -vE "User property type|^FBX version|INFO|WARNING|Data are|glTF|export finished|Not freed|FBX export|bpy.data" | tail -4
+fi
+
+echo
+echo "== [5/5] 质量闸门 + 动作元数据 =="
+[ -n "$ACTION" ] || ACTION="lib_$clip_key"
+QA_JSON="$OUT/qa.json"
+if [ "$DRY" = 1 ]; then
+  echo "  [dry-run] $PY $TOOLS/verify_anim.py --input $OUT --expect $EXPECT --json $QA_JSON"
+  GATE=0
+else
+  "$PY" "$TOOLS/verify_anim.py" --input "$OUT" --expect "$EXPECT" --json "$QA_JSON" \
+    | grep -E "===|判定" | sed 's/^/  /'
+  GATE=@{PIPESTATUS[0]}
+fi
+
+if [ "$DRY" = 0 ]; then
+  "$PY" - <<PYEOF
+import json, os, sys, datetime
+out = "$OUT"
+qa = json.load(open("$QA_JSON", encoding="utf-8")) if os.path.isfile("$QA_JSON") else {"items": []}
+item = qa["items"][0] if qa.get("items") else {}
+meta = {
+    "kind": "action",
+    "version": "1.0.1.0",
+    "name": "$ACTION",
+    "source": "library",
+    "origin": os.path.basename("$CLIP"),
+    "rig": "$NAME",
+    "frames": item.get("frames"),
+    "fps": 30,
+    "loopable": bool($LOOPABLE),
+    "in_place": True,
+    "files": sorted(f for f in os.listdir(out) if f.endswith((".fbx", ".glb"))),
+    "qa": {
+        "expect": qa.get("expect", "any"),
+        "ok": item.get("ok"),
+        "note": item.get("note"),
+        "root_rotation_deg": round(item.get("root_rotation_deg", 0), 1),
+        "limb_rel": round(item.get("limb_rel", 0), 3),
+    },
+    "created": datetime.date.today().isoformat(),
+}
+with open(os.path.join(out, "action.json"), "w", encoding="utf-8") as fh:
+    json.dump(meta, fh, indent=2, ensure_ascii=False)
+print("  动作元数据: %s/action.json（source=library, qa.ok=%s）" % (out, meta["qa"]["ok"]))
+PYEOF
 fi
 
 echo

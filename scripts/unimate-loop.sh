@@ -100,6 +100,15 @@ else
 fi
 
 echo
+echo "== 写动作元数据（action.json） =="
+if [ "$DRY" = 0 ]; then
+  LOOPQ=""
+  [ -f "$WORK/loop_report.json" ] && LOOPQ="--loop-report $WORK/loop_report.json"
+  "$PY" "$TOOLS/action_meta.py" --dir "$WORK" --name "@{NAME}" --source model \
+      --rig "@{NAME}" --origin "model samples: @{WORK}" --loopable @{LOOPQ} 2>&1 | sed 's/^/  /'
+fi
+
+echo
 echo "============================================================"
 echo "产物："
 echo "  循环动作特征 : $WORK/motions/*.npy"

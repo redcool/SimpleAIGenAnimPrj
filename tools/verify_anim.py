@@ -110,9 +110,34 @@ def verdict(r):
     return "既没翻也没怎么动（%.0f%%）" % (100 * rel)
 
 
+def check(r, expect):
+    """按期望类型判定；返回 (ok, 说明)。"""
+    rel = r["limb_rel"]
+    spin = r["root_rotation_deg"]
+    axis_ok = abs(r["axis"][0]) > 0.6
+
+    if expect == "roll":
+        if spin >= 320 and axis_ok and rel >= 0.15:
+            return True, "真翻滚（转角 %.0f°、四肢 %.0f%%）" % (spin, 100 * rel)
+        if spin >= 320 and rel < 0.15:
+            return False, "只转了整体（四肢仅 %.0f%%），不是翻滚" % (100 * rel)
+        return False, "没翻够（累计 %.0f°）" % spin
+
+    if expect == "motion":
+        if rel < 0.05:
+            return False, "四肢几乎不动（%.0f%%），这条动作大概率是废的" % (100 * rel)
+        return True, "动作有效（四肢 %.0f%%）" % (100 * rel)
+
+    # any：只报告，不拦
+    return True, verdict(r)
+
+
 def main():
     ap = argparse.ArgumentParser(description="核对动画：整体翻转 + 四肢动作")
     ap.add_argument("--input", required=True, help="FBX/GLB 文件或目录")
+    ap.add_argument("--json", default=None, help="把指标写成 JSON")
+    ap.add_argument("--expect", default="any", choices=["any", "motion", "roll"],
+                    help="motion=只要求四肢在动；roll=要求整圈翻转；any=只报告")
     args = ap.parse_args()
 
     src = os.path.abspath(args.input)
@@ -124,10 +149,11 @@ def main():
     else:
         files = [src]
 
+    rows, failed = [], 0
     for f in files:
         r = measure(f)
         if r is None:
-            print("%-28s 读取失败" % os.path.basename(f)); continue
+            print("%-28s 读取失败" % os.path.basename(f)); failed += 1; continue
         print("=== %s ===" % r["file"])
         print("  %d 帧   根骨累计转角 %.0f°   主轴 [%+.2f %+.2f %+.2f]" % (
             r["frames"], r["root_rotation_deg"], *r["axis"]))
@@ -135,8 +161,33 @@ def main():
             r["height_min"], r["height_max"], r["limb_amp"], 100 * r["limb_rel"]))
         top = sorted(r["limbs"].items(), key=lambda kv: -kv[1])[:3]
         print("  动得最多的部位: " + ", ".join("%s %.3f" % (k, v) for k, v in top))
-        print("  判定: %s" % verdict(r))
+        ok, note = check(r, args.expect)
+        # 显式转成 Python 原生类型，否则 numpy 值会让 json.dump 中途失败
+        rows.append({
+            "file": r["file"], "frames": int(r["frames"]),
+            "root_rotation_deg": round(float(r["root_rotation_deg"]), 1),
+            "axis": [round(float(x), 3) for x in r["axis"]],
+            "height_min": round(float(r["height_min"]), 3),
+            "height_max": round(float(r["height_max"]), 3),
+            "limb_amp": round(float(r["limb_amp"]), 3),
+            "limb_rel": round(float(r["limb_rel"]), 3),
+            "ok": bool(ok), "note": note,
+        })
+        tag = "" if args.expect == "any" else ("通过 — " if ok else "不通过 — ")
+        print("  判定: %s%s" % (tag, note))
         print()
+        if not ok:
+            failed += 1
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as fh:
+            import json as _json
+            _json.dump({"expect": args.expect, "items": rows}, fh,
+                       indent=2, ensure_ascii=False)
+        print("已写出 %s" % args.json)
+    if failed:
+        print("%d 个文件没通过检查（expect=%s）" % (failed, args.expect))
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

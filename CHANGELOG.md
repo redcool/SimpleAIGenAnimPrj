@@ -3,6 +3,21 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.1.0
+
+把工程从"两条命令"升级成"一条产线"：统一入口、统一契约、统一闸门。
+
+- 新增 `docs/动作产线规范.md`：决策流程（先查分布 → 库 → 机械补 → 手工/微调）、
+  两条产线的命令、输出契约、命名规范（gen_/lib_/act_/loc_）、三道质量闸门、Unity 侧字段约定。
+- 新增 `tools/action_meta.py`：写统一的 `action.json`（name/source/origin/rig/frames/
+  loopable/in_place/qa/files），两条产线共用。模型产线会在循环化结束时自动写。
+- `tools/verify_anim.py` 增加 `--expect motion|roll` 与 `--json`，并返回非零退出码，
+  可以直接当闸门用。
+- `unimate-import-clip.sh` 增加第 5 步质量闸门 + 自动写 `action.json`；
+  同时修了重复运行的两个问题：精简结果写进工作目录（不再往素材目录堆 _v2），
+  rig_preprocess 加 `--overwrite`。
+- `tools/simplify_rig.py` 增加 `--force`（显式允许覆盖，默认仍不覆盖）。
+
 ## 1.0.0.9
 
 - 新增 `tools/verify_anim.py`：把"整体翻转"和"四肢在不在动"**分开量**。
