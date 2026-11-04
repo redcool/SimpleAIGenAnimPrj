@@ -14,7 +14,7 @@ while [ $# -gt 0 ]; do
         ARGS+=("$(from_project "$1")"); shift
       done
       ;;
-    --output_dir|--test_cases_json|--test_cases_txt)
+    --exp-dir|--exp_dir|--model-path|--model_path|--output_dir|--test_cases_json|--test_cases_txt)
       ARGS+=("$1")
       [ $# -ge 2 ] && { ARGS+=("$(from_project "$2")"); shift 2; } || shift ;;
     *)

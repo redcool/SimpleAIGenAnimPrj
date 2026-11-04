@@ -33,6 +33,7 @@ AIGenAnimPrj/
 |---|---|---|---|---|
 | `models/unimate_mixamo_f60_v2` | 人体专用，**推荐** | 固定 22 | 约 730 MB | config.json、dataset_stats.npy、checkpoints/checkpoint_step_120000.pt |
 | `models/unimate_uniml3d_f60_v3` | 通用，任意骨架 | 5~70 | 约 1.2 GB | config.json、dataset_stats.npy、checkpoints/checkpoint_step_150000.pt |
+| `models/unimate_truebones_f60_v2` | **动物专用** | 5~85 | 约 730 MB | config.json、dataset_stats.npy、checkpoints/checkpoint_step_80000.pt |
 
 ### 用 Python（推荐，可控）
 
@@ -220,6 +221,18 @@ python tools/gait_report.py --samples outputs/samples/Fox
 Fox 实测 4 条（2 prompt × 2 reps）：walk 一条是「对角同相 +0.59 / 左右 -0.78」的成型步态，
 另一条整体强度只有 0.006（废条）；run 两条都是袭步（左右 +0.95 / +0.61）。
 结论：**四足同样要按 `--reps` 多采、按指标挑**，不要指望第一条就能用。
+
+### 5.5.1 动物骨架的实测边界
+
+| 资产 | 关节 | 动作 | 结果 |
+|---|---|---|---|
+| Khronos Fox | 22（标准四足骨名） | walk/run | **出过成型步态**（对角同相 +0.59 / 左右 -0.78） |
+| alpaca（用户提供） | 43（耳朵×3、脖子×5、带 IK 控制骨） | run/trot/gallop | **四腿同相 +0.93~1.00 = 整体弹跳**，换动物专用权重也一样 |
+| alpaca | 43 | 待机 | 可用（幅度 0.004，符合待机） |
+
+结论：**骨架越接近训练里的标准四足（骨名干净、20~30 关节），步态越容易成型**；
+耳朵/脖子一大串、带 IK 控制骨的复杂骨架，模型容易退化成整体起伏。
+两条应对：① 换库里的四足步态；② 简化骨架（去掉耳朵/尾巴末节这类不参与步态的骨头）再跑。
 
 ### 5.6 模型做不出的动作：整圈翻转
 

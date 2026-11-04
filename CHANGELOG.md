@@ -3,6 +3,21 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.4.0
+
+用户提供 3 个 GLB 模型（羊驼 / 狗 / 锦鲤），逐个体检后按能力分流。
+
+- **羊驼**（43 关节、有蒙皮）：待机可用；跑步不合格 —— 四种 prompt × 两个权重
+  （通用 + 新下载的动物专用 `unimate_truebones_f60_v2`）都是**四条腿同相 +0.93~1.00**，
+  即整体弹跳而非步态。已按四足规范手工改标签（前腿→Shoulder/Upper Arm/Forearm，
+  后腿→Thigh/Shin/Foot）重试，仍不成型。交付目录 `outputs/actions/alpaca_delivery/`。
+- **狗 / 锦鲤**：**没有骨架**（dog 6 节点 0 skin；koi 只有 MorphBake 形变动画），
+  无法生成动作，需要先绑定。
+- `tools/gait_report.py` 脚关节识别改成「每侧每前后肢取链条最深的那根」，
+  兼容 FrontLowerLeg / Hoof / Paw 这类命名。
+- AGENTS.md 新增 5.5.1：动物骨架的实测边界（Fox 22 关节能出步态，alpaca 43 关节退化成弹跳）。
+- 权重表补动物专用 `unimate_truebones_f60_v2`（5~85 关节，730 MB）。
+
 ## 1.0.3.0
 
 动作库真正跑起来 + 目录收敛 + 操作手册。

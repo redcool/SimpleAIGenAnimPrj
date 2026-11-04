@@ -21,29 +21,53 @@ import os
 import numpy as np
 
 # 关节名里出现这些词就当作"脚"
-FOOT_HINTS = ("hand", "foot", "paw", "hoof", "toe")
+# 四肢末端候选：名字里带这些词的骨头才算（不同资产的命名差别很大，
+# 有 Foot/Hand，也有 LowerLeg / Hoof / Paw）
+FOOT_HINTS = ("hand", "foot", "paw", "hoof", "toe", "leg", "arm", "fin", "wing")
 
 
 def find_feet(joint_names):
-    """从关节名里挑出四肢末端。返回 {标签: 关节下标}。"""
-    feet = {}
+    """从关节名里挑出四肢末端。
+
+    不同资产命名差别很大（Hand/Foot、LowerLeg、Hoof、Paw），
+    所以按"每一侧、每一前/后肢，取链条里最深的那根"来定位末端，
+    而不是死认某个词。
+    """
+    def side_of(low):
+        if ".l" in low or "left" in low or "_l_" in low:
+            return "左"
+        if ".r" in low or "right" in low or "_r_" in low:
+            return "右"
+        return None
+
+    def depth_of(low):
+        # 名字里越靠后的节数越深：shoulder < upper < lower < foot
+        order = [("shoulder", 0), ("hip", 0), ("upper", 1), ("forearm", 2),
+                 ("lower", 3), ("hand", 4), ("foot", 4), ("paw", 4),
+                 ("hoof", 4), ("toe", 5), ("fetlock", 3)]
+        d = 0
+        for key, val in order:
+            if key in low:
+                d = max(d, val)
+        return d
+
+    best = {}
     for i, n in enumerate(joint_names):
         low = n.lower()
         if not any(h in low for h in FOOT_HINTS):
             continue
-        side = "左" if "left" in low else ("右" if "right" in low else "?")
-        # 前肢一般叫 arm/hand，后肢叫 leg/foot
-        front = ("arm" in low) or ("hand" in low) or ("fore" in low)
-        kind = "前" if front else "后"
+        side = side_of(low)
+        if side is None:
+            continue
+        front = any(k in low for k in ("front", "arm", "hand", "fore", "wing"))
+        back = any(k in low for k in ("back", "rear", "hind", "leg", "foot", "hoof", "fin"))
+        # 前后都不明确时按"有没有 arm/hand"归前肢
+        kind = "前" if front and not back else ("后" if back and not front else ("前" if front else "后"))
         label = kind + side
-        # 同一侧同一类有多节时取最末一节（脚掌）
-        if label in feet:
-            prev = joint_names[feet[label]].lower()
-            if low.endswith(("foot02", "foot_02", "hand", "paw")) or prev < low:
-                feet[label] = i
-        else:
-            feet[label] = i
-    return feet
+        d = depth_of(low)
+        if label not in best or d > best[label][0]:
+            best[label] = (d, i)
+    return {k: v[1] for k, v in best.items()}
 
 
 def analyze(path, names):
