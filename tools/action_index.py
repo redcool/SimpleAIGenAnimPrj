@@ -97,6 +97,18 @@ def main():
         if key in seen:
             dups.append((d.get("name"), seen[key], d.get("_path")))
         seen[key] = d.get("_path")
+    # 内容疑似重复：同一角色 + 同样帧数 + 同样的旋转/肢体幅度 —— 多半是同一个片段导了两次
+    sig = {}
+    for d in items:
+        q = d.get("qa") or {}
+        if q.get("check") != "verify_anim" or not q.get("ok"):
+            continue
+        key = (d.get("rig"), d.get("frames"),
+               round(float(q.get("root_rotation_deg") or 0) / 5),
+               round(float(q.get("limb_rel") or 0) / 0.02))
+        sig.setdefault(key, []).append(d.get("name"))
+    dups_content = [v for v in sig.values() if len(v) > 1]
+
     missing = [(d.get("name"), m) for d in items for m in d.get("_missing", [])]
     failed = [d.get("name") for d in items
               if (d.get("qa") or {}).get("ok") is False]
@@ -104,6 +116,9 @@ def main():
     problems = []
     if dups:
         problems.append("重名 %d 组：%s" % (len(dups), dups[:3]))
+    if dups_content:
+        problems.append("疑似重复 %d 组（帧数与动作指标都相同）：%s"
+                        % (len(dups_content), dups_content[:3]))
     if missing:
         problems.append("文件缺失 %d 处：%s" % (len(missing), missing[:3]))
     if failed:

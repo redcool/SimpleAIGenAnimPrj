@@ -46,7 +46,7 @@ SAMPLES="$(abs_path "$SAMPLES")"
 [ -d "$SAMPLES" ] || { echo "找不到目录：$SAMPLES" >&2; exit 2; }
 [ -n "$RIG" ] && RIG="$(abs_path "$RIG")"
 [ -n "$NAME" ] || NAME=$(basename "$SAMPLES")
-[ -n "$OUT" ] || OUT="$(dirname "$SAMPLES")/$(basename "$SAMPLES")_loop"
+[ -n "$OUT" ] || OUT="$ACTIONS_HOME/gen_$(basename "$SAMPLES")"
 OUT="$(abs_path "$OUT")"
 RIG_DIR=""
 [ -n "$RIG" ] && RIG_DIR="$(dirname "$RIG")"

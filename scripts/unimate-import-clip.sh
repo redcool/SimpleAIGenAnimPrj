@@ -56,8 +56,10 @@ RIG="$(abs_path "$RIG")"
 clip_stem="$(basename "${CLIP%.*}")"
 clip_key="$(printf '%s' "$clip_stem" | tr -c 'A-Za-z0-9_-' '_' | sed 's/__*/_/g; s/^_//; s/_$//')"
 [ -n "$NAME" ] || NAME="$(basename "$RIG")"
-[ -n "$OUT" ] || OUT="$SAMPLES_HOME/${NAME}_clip"
-OUT="$PIPELINE_HOME/${OUT#"$PIPELINE_HOME"/}"
+[ -n "$ACTION" ] || ACTION="lib_$clip_key"
+# 默认落到 outputs/actions/<动作名>：这是"已验收动作"的标准位置
+[ -n "$OUT" ] || OUT="$ACTIONS_HOME/$ACTION"
+case "$OUT" in /*) ;; *) OUT="$(from_project "$OUT")" ;; esac
 
 WORK="$PIPELINE_HOME/outputs/rig/.clip_$clip_key"
 mkdir -p "$WORK" "$OUT/motions"
@@ -119,7 +121,6 @@ fi
 
 echo
 echo "== [5/5] 质量闸门 + 动作元数据 =="
-[ -n "$ACTION" ] || ACTION="lib_$clip_key"
 QA_JSON="$OUT/qa.json"
 if [ "$DRY" = 1 ]; then
   echo "  [dry-run] $PY $TOOLS/verify_anim.py --input $OUT --expect $EXPECT --json $QA_JSON"

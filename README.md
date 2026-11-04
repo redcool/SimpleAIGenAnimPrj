@@ -74,9 +74,9 @@ AIGenAnimPrj/
 │   ├── action_meta.py       写统一的 action.json（两条产线共用）
 │   └── action_index.py      扫 outputs/ 生成动作索引表
 ├── models/      ★ 权重（不入库，见 AGENTS.md 第 2 节）
-├── outputs/     ★ rig 产物 + 采样结果（不入库，见 AGENTS.md 第 4 节）
+├── outputs/     ★ rig 产物 + 采样批次 + **actions/（交付的动作）**（不入库）
 ├── dataset/     ★ UniML3D 数据集，可选（不入库，见 AGENTS.md 第 3 节）
-├── docs/        运行记录 + 动作能力清单 + 动作产线规范 + 待补动作清单
+├── docs/        操作手册（照着做）+ 动作能力清单 + 产线规范 + 待补动作清单
 ├── tmp/  .trash/  临时文件 / 回收站（不入库）
 ├── AGENTS.md    agent 工作手册（数据在哪、怎么下、有什么坑）
 └── config.example.env

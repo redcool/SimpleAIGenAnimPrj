@@ -55,4 +55,6 @@ abs_path() {
 EXP_DIR="$(from_project "${EXP_DIR:-${UNIMATE_EXP:-models/unimate_mixamo_f60_v2}}")"
 SAMPLES_HOME="$(from_project "${SAMPLES_HOME:-${UNIMATE_SAMPLES:-outputs/samples}}")"
 RIGS_HOME="$(from_project "${RIGS_HOME:-${UNIMATE_RIGS:-outputs/rig}}")"
-export EXP_DIR SAMPLES_HOME RIGS_HOME
+# 已验收的动作（交付物）：每个动作一个目录，内含 action.json
+ACTIONS_HOME="$(from_project "${ACTIONS_HOME:-outputs/actions}")"
+export EXP_DIR SAMPLES_HOME RIGS_HOME ACTIONS_HOME

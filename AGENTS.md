@@ -336,6 +336,9 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 
 ## 9. 两条产线与输出契约
 
+**来源优先级（硬规则）**：先试模型，做不出/做不好再走库。库动作是候选，不是默认。
+交付必须标来源（`action.json` 的 `source` / `origin`），索引表能直接看出来。
+
 动作来源只有两类，**都要在 `AIGenAnimPrj` 里落成同一种产物**：
 
 | 产线 | 命令 | 适用 |
@@ -345,8 +348,14 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 
 每个动作目录都要有 `action.json`（`tools/action_meta.py` 写）：
 记 `source`（model/library）、`origin`（prompt 或片段名）、`loopable`、`in_place`、`qa`。
+**照着做事就打开 `docs/操作手册.md`**（五个场景：新角色出整套动作 / 补单条库动作 /
+批量补库 / 盘点索引 / 判断该不该走库）。
+
 完整规范（决策流程、命名、闸门、Unity 约定）见 `docs/动作产线规范.md`；
 哪些动作该从库补、优先级怎么排，见 `docs/待补动作清单.md`。
+
+动作目录：**`outputs/actions/<动作>/` 是交付物**（每个含 `action.json`），
+`outputs/samples/` 只是采样中间产物。
 
 批量接入 + 索引：
 
