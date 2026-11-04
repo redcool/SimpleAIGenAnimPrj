@@ -106,6 +106,9 @@ def verdict(res):
     amps = [v["amplitude"] for v in limbs.values()]
     if max(amps) < 1e-3:
         return "几乎不动（这条废了，换一条）"
+    # 幅度很小的先判掉：静止时相位是噪声，硬套步态结论会得出"待机=袭步"这种胡话
+    if max(amps) < 0.012:
+        return "动作幅度很小（待机级别，不是步态；待机动作本来就该这样）"
     if min(amps) < max(amps) * 0.15:
         return "有腿几乎不动（可能只动了半身）"
 
