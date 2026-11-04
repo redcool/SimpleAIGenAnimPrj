@@ -23,7 +23,11 @@ import numpy as np
 # 关节名里出现这些词就当作"脚"
 # 四肢末端候选：名字里带这些词的骨头才算（不同资产的命名差别很大，
 # 有 Foot/Hand，也有 LowerLeg / Hoof / Paw）
-FOOT_HINTS = ("hand", "foot", "paw", "hoof", "toe", "leg", "arm", "fin", "wing")
+# 腿脚优先（foot/toe/leg/paw/hoof）；翅膀、鳍、手是前肢的替代，
+# 只有在一条腿都找不到时才退而求其次（否则鸡会被判成"前脚是翅膀"）
+LEG_HINTS = ("foot", "toe", "leg", "paw", "hoof", "shin", "thigh", "calf")
+ARM_HINTS = ("hand", "arm", "fin", "wing")
+FOOT_HINTS = LEG_HINTS + ARM_HINTS
 
 
 def find_feet(joint_names):
@@ -51,10 +55,14 @@ def find_feet(joint_names):
                 d = max(d, val)
         return d
 
+    # 先只用腿脚类名字；一个都找不到才放宽到翅膀/鳍/手
+    use = LEG_HINTS
+    if not any(any(h in n.lower() for h in LEG_HINTS) for n in joint_names):
+        use = FOOT_HINTS
     best = {}
     for i, n in enumerate(joint_names):
         low = n.lower()
-        if not any(h in low for h in FOOT_HINTS):
+        if not any(h in low for h in use):
             continue
         side = side_of(low)
         if side is None:

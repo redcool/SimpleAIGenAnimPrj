@@ -3,6 +3,20 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.4.2
+
+7 个 Unity Store 动物模型全部跑了一遍产线（idle/walk/run 各 3 次采样），按指标挑片并打包交付。
+
+- 交付：`outputs/actions/<模型>_pack/`（角色 FBX + idle/walk/run + action.json），
+  共 7 个包；索引现有 19 条动作（10 library + 9 model）。
+- 结果：**Dog / Tiger 出成型袭步**（左右 +0.77 / +0.83）；Deer / Horse / Kitty / Pinguin
+  腿在动但步态不标准（run 腿部幅度 0.04~0.25），需看视频定；
+  **Chicken 生成失败**（腿部幅度仅 0.002~0.006，翅膀在动腿不动），
+  已回退到它自带的 idle/walk/run（`builtin/`）。
+- 修 `tools/gait_report.py` 的脚关节选择：原来把翅膀/鳍当"前脚"（鸡被判成前脚是 Wing），
+  改为**腿脚类名字优先**，一条腿都找不到时才退到翅膀/手。
+- 新增 `docs/动物动作交付.md`：结果总表、包结构、Unity 导入、挑选规则、已知问题。
+
 ## 1.0.4.1
 
 - 体检用户新放的 Unity Store 动物包（Chicken/Deer/Dog/Horse/Kitty/Pinguin/Tiger）：
