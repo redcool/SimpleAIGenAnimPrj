@@ -123,7 +123,8 @@ def find_cycle(x: np.ndarray, lo: int, hi: int, start_max: int = None):
     return best[1], best[2], best[3], best[4], [(c[1], c[2], round(c[0], 4)) for c in cands[:5]]
 
 
-def find_cycle_feet(x: np.ndarray, feet, lo: int, hi: int, start_max: int = None):
+def find_cycle_feet(x: np.ndarray, feet, lo: int, hi: int, start_max: int = None,
+                    min_travel: float = 0.0):
     """按四肢末端的轨迹找周期 —— 循环点由脚决定，而不是全身姿态。
 
     一段步态里脚回到同一位置就意味着一轮结束：在整段里找两帧"几只脚几乎相同"，
@@ -140,11 +141,19 @@ def find_cycle_feet(x: np.ndarray, feet, lo: int, hi: int, start_max: int = None
     if start_max is None:
         start_max = T - 2
 
+    # 每帧脚走了多远，用前缀和算"窗口内总行程"
+    step_t = np.linalg.norm(pos[1:] - pos[:-1], axis=-1).mean(-1)   # (T-1,)
+    cum = np.concatenate([[0.0], np.cumsum(step_t)])                # (T,)
+
     cands = []
     for L in range(max(lo, 2), hi + 1):
         for s in range(0, min(start_max, T - L - 1) + 1):
             if s + L >= T:
                 break
+            # 短窗口里脚本来就没怎么动，"两帧相同"是白送的：
+            # 要求这段窗口内脚确实走完了一段路，否则会挑出 8 帧的假周期。
+            if (cum[s + L] - cum[s]) < min_travel:
+                continue
             e = float(np.linalg.norm(pos[s] - pos[s + L], axis=-1).mean())
             ev = 0.0
             if s + 1 < T and s + L + 1 < T:
@@ -263,6 +272,8 @@ def main() -> None:
                     help="找周期的依据：feet=按四肢末端轨迹（四足推荐），rot=按全身旋转，auto=能认出四肢就用 feet")
     ap.add_argument("--foot-min-period", type=int, default=8,
                     help="按脚找周期的最短周期（狗一轮跑步约 20~30 帧，太短会把噪声当周期）")
+    ap.add_argument("--min-foot-travel", type=float, default=0.55,
+                    help="一个周期内脚至少要走过「脚的行程」的这个比例，用来排除短窗口的假周期")
     ap.add_argument("--foot-tolerance", type=float, default=0.12,
                     help="按脚找周期时，两帧脚位差要小于「脚的行程」的这个比例才算循环（尺度无关）")
     ap.add_argument("--min-foot-motion", type=float, default=0.002,
@@ -330,7 +341,8 @@ def main() -> None:
                 basis = "feet(静止,整段)"
             else:
                 start, L, err, verr, cands = find_cycle_feet(
-                    x, feet, lo, min(args.max_period, T - 2), start_max=smax)
+                    x, feet, lo, min(args.max_period, T - 2), start_max=smax,
+                    min_travel=args.min_foot_travel * rng)
                 # 周期误差小不等于接缝好看：先筛掉超容差的候选，
                 # 再按"末帧到首帧那一步有多接近正常步长"挑一条。
                 scored = []
