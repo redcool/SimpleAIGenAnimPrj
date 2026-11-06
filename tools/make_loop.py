@@ -50,6 +50,14 @@ try:                                    # 版本号统一来自仓库根的 VERS
 except Exception:                       # 单独拷走这个文件也能跑
     __version__ = "0.0.0.0"
 
+import sys
+# 允许直接运行（不设 PYTHONPATH 也能 import 同目录模块）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:                                    # 四肢识别与步态检查共用一套规则
+    from rig_joints import find_limbs
+except Exception:
+    find_limbs = None
+
 POS = slice(0, 3)
 ROT = slice(3, 9)
 VEL = slice(9, 12)
@@ -113,6 +121,64 @@ def find_cycle(x: np.ndarray, lo: int, hi: int, start_max: int = None):
     near = [c for c in cands if c[0] <= best[0] * 1.15 + 1e-6]
     best = min(near, key=lambda c: (c[2], c[1]))
     return best[1], best[2], best[3], best[4], [(c[1], c[2], round(c[0], 4)) for c in cands[:5]]
+
+
+def find_cycle_feet(x: np.ndarray, feet, lo: int, hi: int, start_max: int = None):
+    """按四肢末端的轨迹找周期 —— 循环点由脚决定，而不是全身姿态。
+
+    一段步态里脚回到同一位置就意味着一轮结束：在整段里找两帧"几只脚几乎相同"，
+    前一帧当起点、后一帧当终点。躯干晃动不干扰判断。
+
+    Returns:
+        (start, L, 脚误差, 速度项误差, 候选表)
+    """
+    T = x.shape[0]
+    pos = x[:, list(feet.values()), POS].astype(np.float64)
+    hi = min(hi, T - 2)
+    if lo > hi:
+        return 0, T, float("nan"), float("nan"), []
+    if start_max is None:
+        start_max = T - 2
+
+    cands = []
+    for L in range(max(lo, 2), hi + 1):
+        for s in range(0, min(start_max, T - L - 1) + 1):
+            if s + L >= T:
+                break
+            e = float(np.linalg.norm(pos[s] - pos[s + L], axis=-1).mean())
+            ev = 0.0
+            if s + 1 < T and s + L + 1 < T:
+                ev = float(np.linalg.norm(pos[s + 1] - pos[s + L + 1], axis=-1).mean())
+            cands.append((e + 0.5 * ev, s, L, e, ev))
+
+    if not cands:
+        return 0, T, float("nan"), float("nan"), []
+    cands.sort(key=lambda c: c[0])
+    near = [c for c in cands if c[0] <= cands[0][0] * 1.15 + 1e-9]
+    best = min(near, key=lambda c: (c[2], c[1]))
+    return best[1], best[2], best[3], best[4], [(c[1], c[2], round(c[0], 4)) for c in cands[:8]]
+
+
+def foot_range(x: np.ndarray, feet) -> float:
+    """四肢在整段里的活动范围（每只脚 max-min 的均值）。
+
+    判定"两帧像不像"必须拿这个当尺子：同样的绝对误差，
+    对大步跑的狗是小误差，对小幅摆动的猫可能就是半个行程。
+    """
+    if not feet:
+        return 0.0
+    pos = x[:, list(feet.values()), POS].astype(np.float64)
+    rng = pos.max(0) - pos.min(0)                  # (F, 3)
+    return float(np.linalg.norm(rng, axis=-1).mean())
+
+
+def foot_step(x: np.ndarray, feet) -> float:
+    """每帧四肢末端的平均位移（把周期误差换算成相对量用）。"""
+    if not feet:
+        return 0.0
+    pos = x[:, list(feet.values()), POS].astype(np.float64)
+    steps = np.linalg.norm(pos[1:] - pos[:-1], axis=-1).mean(-1)
+    return float(np.median(steps)) if steps.size else 0.0
 
 
 def make_loop(x: np.ndarray, period: int, seam: int, detrend: bool) -> tuple[np.ndarray, dict]:
@@ -193,6 +259,14 @@ def main() -> None:
     ap.add_argument("--anchor", action="store_true",
                     help="退回旧行为：只从第 0 帧开始找周期")
     ap.add_argument("--no-detrend", action="store_true", help="（保留参数，已无作用；根位移交给 flatten_root.py）")
+    ap.add_argument("--basis", choices=["auto", "feet", "rot"], default="auto",
+                    help="找周期的依据：feet=按四肢末端轨迹（四足推荐），rot=按全身旋转，auto=能认出四肢就用 feet")
+    ap.add_argument("--foot-min-period", type=int, default=8,
+                    help="按脚找周期的最短周期（狗一轮跑步约 20~30 帧，太短会把噪声当周期）")
+    ap.add_argument("--foot-tolerance", type=float, default=0.12,
+                    help="按脚找周期时，两帧脚位差要小于「脚的行程」的这个比例才算循环（尺度无关）")
+    ap.add_argument("--min-foot-motion", type=float, default=0.002,
+                    help="四肢每帧平均位移低于此值当作静止（待机），不切周期")
     ap.add_argument("--period-tolerance", type=float, default=1.5,
                     help="检测到的周期误差超过中位步长的这个倍数时，判定为无周期")
     args = ap.parse_args()
@@ -227,9 +301,54 @@ def main() -> None:
         x = np.load(os.path.join(motions_in, name)).astype(np.float32)
         T = x.shape[0]
 
+        # 按关节名认出四肢末端（四足 / 鸟腿），据此决定用什么依据找周期
+        feet = {}
+        asset_key = ""
+        if manifest:
+            asset_key = (manifest.get("samples", {}).get(name, {}) or {}).get("asset", "")
+        if find_limbs is not None and asset_key:
+            jn = (manifest.get("assets", {}).get(asset_key, {}) or {}).get("joint_names")
+            if jn and len(jn) == x.shape[1]:
+                feet = find_limbs(jn)
+        basis = args.basis
+        if basis == "auto":
+            basis = "feet" if len(feet) >= 2 else "rot"
+
         if args.period:
             start, L, err, verr, cands = 0, args.period, float("nan"), float("nan"), []
             cyclic = True
+        elif basis == "feet":
+            smax = 0 if args.anchor else args.max_start
+            lo = args.min_period if args.anchor else args.foot_min_period
+            med0 = foot_step(x, feet)
+            rng = foot_range(x, feet)
+            if med0 < args.min_foot_motion or rng <= 0:
+                # 脚基本不动 = 待机。此时"两帧脚相同"到处都是，
+                # 不设保护会切出几帧的假循环，把细微动作裁掉。
+                start, L, err, verr, cands = 0, T, float("nan"), float("nan"), []
+                cyclic = False
+                basis = "feet(静止,整段)"
+            else:
+                start, L, err, verr, cands = find_cycle_feet(
+                    x, feet, lo, min(args.max_period, T - 2), start_max=smax)
+                # 周期误差小不等于接缝好看：先筛掉超容差的候选，
+                # 再按"末帧到首帧那一步有多接近正常步长"挑一条。
+                scored = []
+                pos = x[:, list(feet.values()), POS].astype(np.float64)
+                for s, Lc, cost in cands:
+                    end = s + Lc - 1
+                    if end >= T or s >= T or cost > args.foot_tolerance * rng:
+                        continue
+                    seam = float(np.linalg.norm(pos[end] - pos[s], axis=-1).mean()) / med0
+                    scored.append((0.6 * abs(seam - 1.0) + cost / med0, seam, s, Lc, cost))
+                if scored:
+                    scored.sort()
+                    _, seam_r, start, L, err = scored[0]
+                    print("    [feet] 起点 %d 周期 %d 接缝比 %.2f（达标候选 %d 个）"
+                          % (start, L, seam_r, len(scored)))
+                else:
+                    start, L = 0, T
+                cyclic = L < T
         else:
             smax = 0 if args.anchor else args.max_start
             start, L, err, verr, cands = find_cycle(
@@ -244,6 +363,14 @@ def main() -> None:
         x_seg = x[start:] if L < T else x
         m = seam_metrics(x_seg, looped, L)
 
+        foot_seam_ratio = None
+        if feet:
+            fpos = looped[:, list(feet.values()), POS].astype(np.float64)
+            if len(fpos) > 1:
+                fstep = float(np.median(np.linalg.norm(fpos[1:] - fpos[:-1], axis=-1).mean(-1)))
+                fseam = float(np.linalg.norm(fpos[-1] - fpos[0], axis=-1).mean())
+                foot_seam_ratio = (fseam / fstep) if fstep else None
+
         np.save(os.path.join(motions_out, name), looped)
         report["items"][name] = {
             "frames_in": int(T), "frames_out": int(looped.shape[0]),
@@ -254,6 +381,10 @@ def main() -> None:
             "velocity_error": None if math.isnan(verr) else round(verr, 4),
             "candidates": [{"start": c[0], "period": c[1], "cost": c[2]} for c in cands],
             "seam_frames": info["seam_frames"],
+            "basis": basis,
+            "foot_seam_ratio": None if foot_seam_ratio is None else round(foot_seam_ratio, 2),
+            "foot_period_error": None if math.isnan(err) else round(err, 5),
+            "feet": {k: v for k, v in (feet or {}).items()},
             "loop_mode": info["mode"],
             "root_drift_removed": [round(v, 4) for v in info["drift"]],
             "median_step": round(m["median_step"], 4),
@@ -279,6 +410,10 @@ def main() -> None:
             verdict = "整段收拢，但接缝明显，建议重新采样这条"
         else:
             verdict = "不适合循环，建议重新采样这条"
+
+        # 按脚找的周期，如果脚在接缝处差得多，优先级最高：这正是"看着一顿"的原因
+        if not hold and foot_seam_ratio is not None and foot_seam_ratio > 1.4:
+            verdict = "接缝处脚差了 %.1f 倍步长，建议换一条或加采样" % foot_seam_ratio
 
         report["items"][name]["loop_verdict"] = verdict
         report["items"][name]["seam_before_abs"] = round(abs_before, 4)

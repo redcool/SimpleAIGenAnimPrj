@@ -20,6 +20,15 @@ import os
 
 import numpy as np
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+sys_path_fix = None  # noqa: E305
+try:
+    from rig_joints import find_limbs
+except Exception:  # 单独拷走也能跑
+    from tools.rig_joints import find_limbs
+
 # 关节名里出现这些词就当作"脚"
 # 四肢末端候选：名字里带这些词的骨头才算（不同资产的命名差别很大，
 # 有 Foot/Hand，也有 LowerLeg / Hoof / Paw）
@@ -31,51 +40,9 @@ FOOT_HINTS = LEG_HINTS + ARM_HINTS
 
 
 def find_feet(joint_names):
-    """从关节名里挑出四肢末端。
+    """四肢末端（规则见 tools/rig_joints.py）。"""
+    return find_limbs(joint_names)
 
-    不同资产命名差别很大（Hand/Foot、LowerLeg、Hoof、Paw），
-    所以按"每一侧、每一前/后肢，取链条里最深的那根"来定位末端，
-    而不是死认某个词。
-    """
-    def side_of(low):
-        if ".l" in low or "left" in low or "_l_" in low:
-            return "左"
-        if ".r" in low or "right" in low or "_r_" in low:
-            return "右"
-        return None
-
-    def depth_of(low):
-        # 名字里越靠后的节数越深：shoulder < upper < lower < foot
-        order = [("shoulder", 0), ("hip", 0), ("upper", 1), ("forearm", 2),
-                 ("lower", 3), ("hand", 4), ("foot", 4), ("paw", 4),
-                 ("hoof", 4), ("toe", 5), ("fetlock", 3)]
-        d = 0
-        for key, val in order:
-            if key in low:
-                d = max(d, val)
-        return d
-
-    # 先只用腿脚类名字；一个都找不到才放宽到翅膀/鳍/手
-    use = LEG_HINTS
-    if not any(any(h in n.lower() for h in LEG_HINTS) for n in joint_names):
-        use = FOOT_HINTS
-    best = {}
-    for i, n in enumerate(joint_names):
-        low = n.lower()
-        if not any(h in low for h in use):
-            continue
-        side = side_of(low)
-        if side is None:
-            continue
-        front = any(k in low for k in ("front", "arm", "hand", "fore", "wing"))
-        back = any(k in low for k in ("back", "rear", "hind", "leg", "foot", "hoof", "fin"))
-        # 前后都不明确时按"有没有 arm/hand"归前肢
-        kind = "前" if front and not back else ("后" if back and not front else ("前" if front else "后"))
-        label = kind + side
-        d = depth_of(low)
-        if label not in best or d > best[label][0]:
-            best[label] = (d, i)
-    return {k: v[1] for k, v in best.items()}
 
 
 def analyze(path, names):

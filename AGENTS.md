@@ -278,6 +278,14 @@ docs/动作能力清单.md）：
 自查：`python tools/caption_stats.py --meta tmp/meta --grep <动作词>`
 （元数据几 MB，不用下 88 GB 数据集）。
 
+**循环点怎么定**（v1.0.4.3 起）：能认出四肢时按**四肢末端的轨迹**找 ——
+在整段里找两帧"几只脚几乎相同"，前一帧当起点、后一帧当终点
+（`make_loop.py --basis feet`，四足默认走这条）。判"像不像"用的是**脚的行程比例**
+（`--foot-tolerance 0.12`），不是绝对距离，否则大小体型不能用同一套阈值。
+脚几乎不动时（待机）自动不切周期，避免切成几帧的假循环。
+报告里的 `foot_seam_ratio` 是接缝处脚差了几倍正常步长 —— **≤1.1 才算能用**，
+1.4 以上会在循环处看得见一顿。
+
 已知的结构性边界：**整圈翻转不可表达**（根朝向由关节位置水平投影算出，只含偏航；
 根骨旋转又被朝向顶替）。翻滚在数据里有 191 条也生成不出来——走动作库（5.8），
 或者只在刚体场合用 `add_root_spin.py`（5.6）。
@@ -352,7 +360,7 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 | `blender: command not found` | 没装 shim | `bash scripts/install_blender_shim.sh` |
 | `fits=false` | 关节超 71 | 先精简 |
 | 生成的动作"抖"或"不像" | prompt 风格不对 / cfg 太低 | 照 `An object ...` 句式；`--cfg_scale 5~7` |
-| 循环处一跳 | 没做循环化 | 走 `unimate-loop.sh`（有周期就剪，没周期用 `--close`） |
+| 循环处一跳 | 周期没找对 | 走 `unimate-loop.sh`；四足看 `loop_report.json` 的 `foot_seam_ratio`（>1.4 就是脚没接上，换一条） |
 
 ## 9. 两条产线与输出契约
 
