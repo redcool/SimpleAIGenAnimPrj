@@ -3,6 +3,36 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.5.0
+
+新增 **m2mr(视频动补)产线**，落点 `Motion2MixamoRig/`（AIGenAnimPrj 专属子目录）。
+引用库 `H:\aiworks\motionPrj\Motion2MixamoRig` 保持只读，改动一律在本工程内以包装层实现。
+
+- `tools/motion2mixamo_command.py`：唯一入口。运行时给 `gvhmr.recover` 套一层注入相机焦距
+  （`MOTION2MIXAMO_FOCAL_PIXELS` / `MOTION2MIXAMO_FOCAL_MILLIMETRES`）。上游不透出焦距，
+  按 43mm 等效估深度会高估约 65%。同时修正了一个顺序坑：必须先导出 `GVHMR_BODY_MODELS`
+  再 import gvhmr，否则会去 site-packages 找体模而报 "body model not found"。
+- `tools/ground_character_on_floor.py`：按 GLB 自身蒙皮逐帧算**全部顶点**最低 y，着地帧压到 0、
+  非着地帧插值并夹紧不低于 0。实测 punch 片：陷地 952 帧 → 0 帧，最低点恒为 0。
+- `tools/run_batch_captures.py`：批量跑素材 + 质检门禁（FAIL 穿模≥15% 或最深≥8cm 或脚锁≥30cm），
+  出 markdown + csv 报告，落地修正自动串在其中。
+- `tools/fuse_camera_views.py`：双机位融合。姿态（root-relative Procrustes）与根轨迹分开拟合，
+  报告拆 `pose_rms_cm` / `root_rms_cm`。自测：恒等 0.00cm；模拟第二机位能还原缩放 0.9237（真值 0.9259）。
+- `tools/blender/`：glb → 二进制 FBX（Unity 原生导入）；带 z=0 地板的落地对照渲染。
+- 对引用库焦距补丁存档于 `Motion2MixamoRig/tmp/motion2mixamorig_focal_patch_v1.diff`
+  （如需并入库内实现，先 fork 引用库）。
+
+依据：合格素材 punch 穿模 3.4% / 脚锁 2.9cm；不合格素材（2×2 合成片裁剪）穿模 47% / 脚锁 29.6cm。
+
+## 1.0.4.6
+
+- **完整序列也做原地化**：`full/` 默认给原地版（`*_full.fbx`），带根位移的原版保留为
+  `*_full_motion.fbx`。实测首尾水平位移 Tiger run 0.779 → 0.034、Dog run 0.262 → 0.005、
+  Horse walk 0.096 → 0.014（Tiger/Horse 的 walk/run 是 160 帧长序列）。
+- 新增 `docs/目录重构方案.md`：按能力分目录（core / pipelines/{unimate,library,m2mr}），
+  并指出一个命名坑——内部目录别叫 `UniMate`，会和外部只读的上游仓库 `UNIMATE_HOME` 混淆。
+- 用户反馈 Horse 的循环动作可接受；Tiger/Horse 的 walk 与 run 仍以完整序列 + 候选帧号为准。
+
 ## 1.0.4.5
 
 按用户要求：**每个循环动作出两版**，供人工在完整序列里自己找循环。
