@@ -385,6 +385,12 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 动作目录：**`outputs/actions/<动作>/` 是交付物**（每个含 `action.json`），
 `outputs/samples/` 只是采样中间产物。
 
+**循环动作一律出两版**（用户 2026-11-04 定）：`anim/` 是程序处理过的循环版，
+`full/` 是**未处理的完整序列**（Tiger/Horse 的 walk/run 是 160 帧 3 段串接）
+外加 `cycle_candidates.txt` 列出候选循环点（帧号 + 脚差）。
+人工发现循环不对时，按清单帧号在完整序列里自己切。
+清单随时可重生成：`python tools/cycle_candidates.py --samples <目录> --top 12`。
+
 批量接入 + 索引：
 
 ```bash
