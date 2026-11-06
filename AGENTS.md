@@ -15,15 +15,22 @@
 
 ## 1. 目录
 
+按能力分目录（v1.0.5.0 起，细节见 `docs/目录重构说明.md`）：
+
 ```
 AIGenAnimPrj/
-├── scripts/   入口（bash）。_env.sh 读配置并导出绝对路径
-├── tools/     Python 实现
-└── models/    ★ 权重，不入库          （本文第 2 节）
-    outputs/   ★ rig 产物 + 采样结果，不入库（本文第 4 节）
-    dataset/   ★ UniML3D 数据集，不入库，可选（本文第 3 节）
-    tmp/ .trash/  不入库
+├── core/              跨来源共用：env.sh、pipeline_config、action_meta、action_index
+├── pipelines/
+│   └── unimate/       UniMate 抽卡与库片段接入（scripts/ 入口 + tools/ 实现）
+├── Motion2MixamoRig/  动补重定向（独立模块，保持原位）
+├── scripts/  tools/   兼容层：老命令仍可用，只转发到新位置并打印弃用提示
+├── models/            ★ 权重，不入库          （本文第 2 节）
+├── outputs/           ★ rig / samples / actions，不入库（本文第 4 节）
+├── dataset/           ★ UniML3D 数据集，不入库，可选（本文第 3 节）
+├── docs/  tmp/  .trash/
 ```
+
+两个"UniMate"别混：`$UNIMATE_HOME` 指**外部只读仓库**，`pipelines/unimate/` 是**我们的封装**。
 
 ## 2. 下载权重（必做）
 
@@ -200,13 +207,13 @@ rest pose 躺倒或倒置（加 `--rest_rotation x180` 摆正）、训练里稀�
 v1.0.0.5 起管线会直接说清楚并退出，提示这样跑：
 
 ```bash
-bash scripts/unimate-pipeline.sh --input fox.glb --exp-dir models/unimate_uniml3d_f60_v3
+bash pipelines/unimate/scripts/unimate-pipeline.sh --input fox.glb --exp-dir models/unimate_uniml3d_f60_v3
 ```
 
 **动作质量先用数字看，再决定要不要看视频**：
 
 ```bash
-python tools/gait_report.py --samples outputs/samples/Fox
+python pipelines/unimate/tools/gait_report.py --samples outputs/samples/Fox
 ```
 
 输出四条腿的竖直摆幅 + 两两相位相关系数，并给一句判定：
@@ -275,7 +282,7 @@ docs/动作能力清单.md）：
 | < 1% | 边缘 | 暴力多采，同时准备替代方案 |
 | 查不到 | 没学过 | 别在 prompt 上耗，走替代方案 |
 
-自查：`python tools/caption_stats.py --meta tmp/meta --grep <动作词>`
+自查：`python pipelines/unimate/tools/caption_stats.py --meta tmp/meta --grep <动作词>`
 （元数据几 MB，不用下 88 GB 数据集）。
 
 **循环点怎么定**（v1.0.4.3 起）：能认出四肢时按**四肢末端的轨迹**找 ——
@@ -297,7 +304,7 @@ docs/动作能力清单.md）：
 一条命令（片段与角色同一套骨架时）：
 
 ```bash
-bash scripts/unimate-import-clip.sh \
+bash pipelines/unimate/scripts/unimate-import-clip.sh \
     --clip "Arts/Sprinting Forward Roll.fbx" \
     --rig outputs/rig/X_Bot --name X_Bot \
     --out outputs/samples/roll_lib_test
@@ -323,18 +330,18 @@ bash scripts/unimate-import-clip.sh \
 ```bash
 cp config.example.env config.env      # 填 UNIMATE_HOME / UNIMATE_PYTHON
 bash setup.sh                          # 依赖自检
-bash scripts/install_blender_shim.sh   # 一次性：让 UniMate 的 blender 调用走 bpy
+bash pipelines/unimate/scripts/install_blender_shim.sh   # 一次性：让 UniMate 的 blender 调用走 bpy
 
 # 0. （可选）先单独体检，避免跑完管线才发现关节不对
-bash scripts/unimate-inspect.sh --input /path/to/model.fbx --no-bones
+bash pipelines/unimate/scripts/unimate-inspect.sh --input /path/to/model.fbx --no-bones
 #    超了先精简：Mixamo 绑定用 --mode mixamo，其它骨架用 --drop 正则
-bash scripts/unimate-simplify.sh --input /path/to/model.fbx --mode mixamo
+bash pipelines/unimate/scripts/unimate-simplify.sh --input /path/to/model.fbx --mode mixamo
 
 # 1. 一条龙：体检 -> 精简（超标才跑）-> 打标签 -> 采样 -> 导出
-bash scripts/unimate-pipeline.sh --input /path/to/model.fbx --reps 3
+bash pipelines/unimate/scripts/unimate-pipeline.sh --input /path/to/model.fbx --reps 3
 
 # 2. 循环化 + 打包 Unity
-bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资产名> \
+bash pipelines/unimate/scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资产名> \
     --rig outputs/rig/<资产名>/<资产名>.glb
 ```
 
@@ -357,7 +364,7 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 |---|---|---|
 | `Fetching N files` 卡住、缓存 0 字节 | xet 后端 | `export HF_HUB_DISABLE_XET=1` |
 | `No config.json in ...` | 权重只下了 .pt | 补 `config.json` 和 `dataset_stats.npy` |
-| `blender: command not found` | 没装 shim | `bash scripts/install_blender_shim.sh` |
+| `blender: command not found` | 没装 shim | `bash pipelines/unimate/scripts/install_blender_shim.sh` |
 | `fits=false` | 关节超 71 | 先精简 |
 | 生成的动作"抖"或"不像" | prompt 风格不对 / cfg 太低 | 照 `An object ...` 句式；`--cfg_scale 5~7` |
 | 循环处一跳 | 周期没找对 | 走 `unimate-loop.sh`；四足看 `loop_report.json` 的 `foot_seam_ratio`（>1.4 就是脚没接上，换一条） |
@@ -374,7 +381,7 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 | A 模型生成 | `unimate-pipeline.sh` → `unimate-loop.sh` | 训练分布内（≥1% caption 占比） |
 | B 动作库接入 | `unimate-import-clip.sh` | 分布外、库里有的（翻滚/攀爬/受击） |
 
-每个动作目录都要有 `action.json`（`tools/action_meta.py` 写）：
+每个动作目录都要有 `action.json`（`core/action_meta.py` 写）：
 记 `source`（model/library）、`origin`（prompt 或片段名）、`loopable`、`in_place`、`qa`。
 **照着做事就打开 `docs/操作手册.md`**（五个场景：新角色出整套动作 / 补单条库动作 /
 批量补库 / 盘点索引 / 判断该不该走库）。
@@ -389,20 +396,20 @@ bash scripts/unimate-loop.sh --samples outputs/samples/<资产名> --name <资�
 `full/` 是**未处理的完整序列**（Tiger/Horse 的 walk/run 是 160 帧 3 段串接）
 外加 `cycle_candidates.txt` 列出候选循环点（帧号 + 脚差）。
 人工发现循环不对时，按清单帧号在完整序列里自己切。
-清单随时可重生成：`python tools/cycle_candidates.py --samples <目录> --top 12`。
+清单随时可重生成：`python pipelines/unimate/tools/cycle_candidates.py --samples <目录> --top 12`。
 
 批量接入 + 索引：
 
 ```bash
-bash scripts/unimate-import-batch.sh --clips Arts/mixamo/rolls \
+bash pipelines/unimate/scripts/unimate-import-batch.sh --clips Arts/mixamo/rolls \
     --rig outputs/rig/X_Bot --name X_Bot --expect roll --prefix act_
-PYTHONPATH=tools python tools/action_index.py
+python core/action_index.py
 ```
 
 ## 10. 改动本工程时
 
 - 改完跑一遍 `bash -n`（脚本）和 `python -m py_compile`（工具）。
-- 对上游的调用只允许出现在 `tools/unimate_api.py`；其它文件不许 `import unimate`。
+- 对上游的调用只允许出现在 `pipelines/unimate/tools/unimate_api.py`；其它文件不许 `import unimate`。
 - 端到端回归：拿 `Arts/X Bot.fbx` 跑一次 `unimate-loop.sh`，接缝倍数应与上次一致
   （走/跑 0.6~1.3，待机走 `--close` 后 1.4~2.2）。
 - 版本号：字段改动 → w+1；新增能力 → z+1 并在 `CHANGELOG.md` 写清楚。

@@ -2,7 +2,7 @@
 # 环境自检：缺什么说什么。首次使用先跑这个。
 #   bash setup.sh
 set -uo pipefail
-source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/scripts/_env.sh"
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/core/env.sh"
 
 fail=0
 ok()   { printf '  [ok]   %s\n' "$1"; }
@@ -55,8 +55,8 @@ print('  当前 commit: %s' % c.check_pinned_version(pathlib.Path('$UNIMATE_HOME
 echo
 if [ "$fail" = 0 ]; then
   echo "自检通过。下一步："
-  echo "  bash scripts/unimate-inspect.sh --input <你的模型.fbx>"
-  echo "  bash scripts/unimate-pipeline.sh --input <你的模型.fbx>"
+  echo "  bash pipelines/unimate/scripts/unimate-inspect.sh --input <你的模型.fbx>"
+  echo "  bash pipelines/unimate/scripts/unimate-pipeline.sh --input <你的模型.fbx>"
 else
   echo "有项目未通过，按提示补齐。"
   exit 1

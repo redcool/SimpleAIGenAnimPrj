@@ -27,59 +27,44 @@ cp config.example.env config.env
 
 # 2. 按 AGENTS.md 第 2 节下载权重（约 2 GB），然后自检
 bash setup.sh
-bash scripts/install_blender_shim.sh   # 一次性：让 UniMate 的 blender 调用走 bpy
+bash pipelines/unimate/scripts/install_blender_shim.sh   # 一次性：让 UniMate 的 blender 调用走 bpy
 
 # 3. 体检：关节数、是否绑定、有没有空权重顶点
-bash scripts/unimate-inspect.sh --input /path/to/model.fbx --no-bones
+bash pipelines/unimate/scripts/unimate-inspect.sh --input /path/to/model.fbx --no-bones
 #    超限先精简（Mixamo 绑定用 --mode mixamo，其它骨架用 --drop 正则）
-bash scripts/unimate-simplify.sh --input /path/to/model.fbx --mode mixamo
+bash pipelines/unimate/scripts/unimate-simplify.sh --input /path/to/model.fbx --mode mixamo
 
 # 4. 一条龙：体检 -> 精简 -> 打标签 -> 采样 -> 导出
-bash scripts/unimate-pipeline.sh --input /path/to/model.fbx --reps 3
+bash pipelines/unimate/scripts/unimate-pipeline.sh --input /path/to/model.fbx --reps 3
 #    四足/动物/机器人（非 Mixamo 22 关节人体）要换成通用权重：
 #    ... --exp-dir models/unimate_uniml3d_f60_v3
 
 # 5. 循环化 + 打包 Unity
-bash scripts/unimate-loop.sh --samples <采样目录> --name <资产名> --rig <资产.glb>
+bash pipelines/unimate/scripts/unimate-loop.sh --samples <采样目录> --name <资产名> --rig <资产.glb>
 ```
 
 Windows 上通过 WSL 调：
 
 ```powershell
-wsl -e bash /mnt/h/..../AIGenAnimPrj/scripts/unimate-pipeline.sh --input "..."
+wsl -e bash /mnt/h/..../AIGenAnimPrj/pipelines/unimate/scripts/unimate-pipeline.sh --input "..."
 ```
 
 ## 目录
 
+按能力分目录（v1.0.5.0 起，详见 `docs/目录重构说明.md`）：
+
 ```
 AIGenAnimPrj/
-├── scripts/     命令行入口（bash）；_env.sh 读 config.env、导出绝对路径
-│                unimate-pipeline / unimate-loop（模型产线）
-│                unimate-import-clip（动作库产线）/ unimate-import-batch（批量）
-├── tools/       实际干活的 Python
-│   ├── pipeline_config.py   读 config.env、解析路径、版本校验
-│   ├── unimate_api.py       唯一 import UniMate 内部的地方
-│   ├── inspect_rig.py       骨架体检
-│   ├── simplify_rig.py      骨架精简（Mixamo 65 -> 22 等）
-│   ├── make_loop.py         起点 + 周期一起搜，剪切 + 接缝淡化
-│   ├── loop_close.py        模型闭环（让模型把末帧收回首帧）
-│   ├── flatten_root.py      拉平根位移，变原地动作
-│   ├── bundle_unity.py      整理成 Unity 目录 + 导入说明
-│   ├── gait_report.py       多足动作的步态速查（摆幅 + 相位），不看视频先筛
-│   ├── roll_check.py        判断有没有真翻过去（累计转角 + 主轴）
-│   ├── add_root_spin.py     给根骨补一圈旋转（混合方案）
-│   ├── caption_stats.py     查某个动作在训练分布里的占比
-│   ├── remap_motion_joints.py  动作库片段接到自己角色时，按骨名对齐关节顺序
-│   ├── verify_anim.py       核对导出动画：整体翻转 + 四肢动作分开量
-│   ├── action_meta.py       写统一的 action.json（两条产线共用）
-│   └── action_index.py      扫 outputs/ 生成动作索引表
-├── models/      ★ 权重（不入库，见 AGENTS.md 第 2 节）
-├── outputs/     ★ rig 产物 + 采样批次 + **actions/（交付的动作）**（不入库）
-├── dataset/     ★ UniML3D 数据集，可选（不入库，见 AGENTS.md 第 3 节）
-├── docs/        操作手册（照着做）+ 动作能力清单 + 产线规范 + 待补动作清单
-├── tmp/  .trash/  临时文件 / 回收站（不入库）
-├── AGENTS.md    agent 工作手册（数据在哪、怎么下、有什么坑）
-└── config.example.env
+├── core/              跨来源共用：env.sh、pipeline_config、action_meta、action_index
+├── pipelines/
+│   └── unimate/       UniMate 抽卡与库片段接入（scripts/ 入口 + tools/ 实现）
+├── Motion2MixamoRig/  动补重定向（独立模块）
+├── scripts/  tools/   兼容层：老命令仍可用，只转发并打印弃用提示
+├── models/            ★ 权重（不入库）
+├── outputs/           ★ rig / samples / actions（不入库）
+├── dataset/           ★ UniML3D 数据集（可选，不入库）
+├── docs/              操作手册、产线规范、能力清单、重构说明
+└── tmp/  .trash/      临时文件 / 回收站（不入库）
 ```
 
 ## 循环化：两条路线
@@ -94,10 +79,10 @@ AIGenAnimPrj/
 
 ```bash
 # 走/跑
-bash scripts/unimate-loop.sh --samples <dir> --name X_Bot --rig <rig.glb>
+bash pipelines/unimate/scripts/unimate-loop.sh --samples <dir> --name X_Bot --rig <rig.glb>
 
 # 待机
-bash scripts/unimate-loop.sh --samples <dir> --name X_Bot --rig <rig.glb> --close
+bash pipelines/unimate/scripts/unimate-loop.sh --samples <dir> --name X_Bot --rig <rig.glb> --close
 ```
 
 关键点：**循环起点不一定在第 0 帧**。只在第 0 帧找周期会漏掉一半的片段；

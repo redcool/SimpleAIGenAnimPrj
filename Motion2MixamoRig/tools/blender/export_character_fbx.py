@@ -71,6 +71,8 @@ def main() -> int:
     skinned_meshes = [obj for obj in imported_objects if obj.type == "MESH"
                       and any(modifier.type == "ARMATURE" for modifier in obj.modifiers)]
     helpers = [obj for obj in imported_objects if obj not in skinned_meshes and obj is not armature]
+    # 名字必须在删除前取好:删除后对象引用失效,再读 .name 会抛 StructRNA removed
+    dropped_helper_names = [helper.name for helper in helpers]
     for helper in helpers:
         bpy.data.objects.remove(helper, do_unlink=True)
 
@@ -80,7 +82,7 @@ def main() -> int:
         "bone_count": len(armature.data.bones) if armature else 0,
         "skinned_meshes": [{"name": mesh.name, "vertices": len(mesh.data.vertices),
                             "polygons": len(mesh.data.polygons)} for mesh in skinned_meshes],
-        "dropped_helpers": [helper.name for helper in helpers],
+        "dropped_helpers": dropped_helper_names,
     }
 
     animation: dict = {}

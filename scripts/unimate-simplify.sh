@@ -1,6 +1,4 @@
 #!/bin/bash
-# 骨架精简：把超限的绑定骨架削到 UniMate 能吃的关节数（默认 Mixamo 22 根核心骨）。
-#   bash scripts/unimate-simplify.sh --input "Arts/X Bot.fbx"
-#   bash scripts/unimate-simplify.sh --input a.glb --mode drop --drop "Twist|Helper"
-source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/_env.sh"
-exec "$PY" "$TOOLS/simplify_rig.py" "$@"
+# 兼容层：本脚本已迁移，这里只转发到新位置。
+echo "[弃用提示] scripts/unimate-simplify.sh 已迁移到 pipelines/unimate/scripts/unimate-simplify.sh" >&2
+exec bash "$(dirname "$(readlink -f "$BASH_SOURCE[0]}")")/../pipelines/unimate/scripts/unimate-simplify.sh" "$@"
