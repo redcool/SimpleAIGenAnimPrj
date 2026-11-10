@@ -7,7 +7,7 @@
 # 流程：精简到目标关节数 -> 转成 UniMate 特征 -> 关节顺序对齐 -> 驱动角色导出
 #
 # 用法：
-#   bash scripts/unimate-import-clip.sh \
+#   bash pipelines/unimate/scripts/unimate-import-clip.sh \
 #       --clip "Arts/Sprinting Forward Roll.fbx" \
 #       --rig outputs/rig/X_Bot --name X_Bot --out outputs/samples/roll_on_xbot
 #

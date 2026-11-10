@@ -5,8 +5,8 @@
 #   --close（模型闭环）：让模型把末帧收回首帧 -> 导出 -> 拉平 -> 打包
 #
 # 用法：
-#   bash scripts/unimate-loop.sh --samples <采样目录> --name X_Bot --rig <rig.glb>
-#   bash scripts/unimate-loop.sh --samples <采样目录> --name X_Bot --rig <rig.glb> --close
+#   bash pipelines/unimate/scripts/unimate-loop.sh --samples <采样目录> --name X_Bot --rig <rig.glb>
+#   bash pipelines/unimate/scripts/unimate-loop.sh --samples <采样目录> --name X_Bot --rig <rig.glb> --close
 #
 #   --samples <dir>   采样目录（含 motions/ 和 manifest.json）
 #   --name <str>      角色名

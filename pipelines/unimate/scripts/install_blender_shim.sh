@@ -6,8 +6,8 @@
 # 而我们没有装 Blender 本体，用的是 pip 的 bpy 模块（Blender 4.0 作为 Python 库）。
 # 这个假命令把上面的调用翻译成 "用环境里的 python 直接跑那个脚本"。
 #
-#   bash scripts/install_blender_shim.sh          # 安装 / 覆盖
-#   bash scripts/install_blender_shim.sh --check  # 只检查
+#   bash pipelines/unimate/scripts/install_blender_shim.sh          # 安装 / 覆盖
+#   bash pipelines/unimate/scripts/install_blender_shim.sh --check  # 只检查
 source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../core/env.sh"
 
 TARGET="$(dirname "$PY")/blender"
@@ -17,7 +17,7 @@ if [ "${1:-}" = "--check" ]; then
     echo "已安装: $TARGET"
     head -2 "$TARGET" | tail -1
   else
-    echo "未安装。跑 bash scripts/install_blender_shim.sh"
+    echo "未安装。跑 bash pipelines/unimate/scripts/install_blender_shim.sh"
     exit 1
   fi
   exit 0

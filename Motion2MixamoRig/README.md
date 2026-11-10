@@ -15,7 +15,7 @@ Motion2MixamoRig/
 │   └── blender/
 │       ├── export_character_fbx.py        glb -> 二进制 FBX(Unity 原生)
 │       └── render_floor_contact_stills.py 加 z=0 地板渲染若干帧,看脚是否贴地
-├── outputs/                   产物(punch/v2 等)
+├── outputs/                   模块内中间产物(正式交付不放这里)
 └── tmp/                       临时文件、日志、以及对引用库的补丁存档
 ```
 
@@ -28,6 +28,22 @@ GVHMR 按 43mm 等效镜头估算,手机主摄(约 26mm)的深度会被高估约
 本目录不改引用库,而是在运行时给 `gvhmr.recover` 套一层,读出环境变量后补上
 `f_px` / `f_mm`。补丁内容存档在 `tmp/motion2mixamorig_focal_patch_v1.diff`
 (如需改为库内实现,先 fork 引用库再合并该补丁)。
+
+## 交付落位(2026-11-07 定)
+
+视频动补的成品**统一放 `AIGenAnimPrj/outputs/video_cap/<cap_*>/v2` 这类目录**,
+不混进 `outputs/actions/`(那里是模型产线与动作库产线的交付,契约字段不同)。
+
+每个交付目录要有:
+
+| 文件 | 说明 |
+|---|---|
+| `action.json` | 由 `core/action_meta.py` 写,`source: capture`;不要自己另写一份 |
+| `mixamo_character_grounded.glb` / `.fbx` | 落地修正后的角色(Unity 用 fbx) |
+| `videos/compare.mp4` | 四宫格对比 |
+| `diagnostics.json` / `REPORT.md` | 质量报告 |
+
+命名:`cap_<动作>_v<版本>`,例如 `outputs/video_cap/cap_punch_v2/`。
 
 ## 环境变量
 

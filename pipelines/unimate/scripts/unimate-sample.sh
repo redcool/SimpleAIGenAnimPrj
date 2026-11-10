@@ -1,6 +1,6 @@
 #!/bin/bash
 # 采样封装：文本 -> 动作。参数原样传给 unimate.inference.sample。
-#   bash scripts/unimate-sample.sh --asset <rig 目录> --prompt "An object walks forward."
+#   bash pipelines/unimate/scripts/unimate-sample.sh --asset <rig 目录> --prompt "An object walks forward."
 # 权重目录默认取 config.env 的 UNIMATE_EXP，可用 EXP_DIR 环境变量覆盖。
 source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../core/env.sh"
 # 相对路径按本工程根解析：UniMate 的 sampler 会在 UNIMATE_HOME 下运行，

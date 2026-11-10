@@ -3,10 +3,10 @@
 # 每一步都先判断能不能跳过。
 #
 # 用法：
-#   bash scripts/unimate-pipeline.sh --input "Arts/X Bot.fbx"
-#   bash scripts/unimate-pipeline.sh --input robot.fbx --name robot \
+#   bash pipelines/unimate/scripts/unimate-pipeline.sh --input "Arts/X Bot.fbx"
+#   bash pipelines/unimate/scripts/unimate-pipeline.sh --input robot.fbx --name robot \
 #       --prompt "An object walks forward." --prompt "An object runs forward." --reps 2
-#   bash scripts/unimate-pipeline.sh --input a.fbx --drop "Finger|Twist" --max-joints 71
+#   bash pipelines/unimate/scripts/unimate-pipeline.sh --input a.fbx --drop "Finger|Twist" --max-joints 71
 #
 #   --input <file>       rigged GLB / glTF / FBX（必填）
 #   --name <str>         资产名，默认由文件名推出来
@@ -109,7 +109,7 @@ sys.exit(0 if not missing else 1)
     echo >&2
     echo "这个资产不是 Mixamo 22 关节绑定（缺核心骨），人体专用权重用不了。" >&2
     echo "它大概率是四足/动物/机器人，请改用通用权重：" >&2
-    echo "  bash scripts/unimate-pipeline.sh --input <同一个资产> --exp-dir models/unimate_uniml3d_f60_v3 ..." >&2
+    echo "  bash pipelines/unimate/scripts/unimate-pipeline.sh --input <同一个资产> --exp-dir models/unimate_uniml3d_f60_v3 ..." >&2
     exit 3
   fi
 fi

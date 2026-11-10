@@ -3,6 +3,23 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.5.1
+
+视频动补的交付落位与契约对齐(用户 2026-11-07 定:动补成品放**动补自己的目录**)。
+
+- 新增约定:视频动补交付放 `outputs/video_cap/<cap_*>/v2`,不混进 `outputs/actions/`。
+  理由:actions 下是模型与库两条产线的交付,质量语义是循环接缝/四肢幅度;
+  动补的语义是自穿插/脚锁/落地,混在一起索引表读不出重点。
+- `core/action_meta.py`:`--source` 增加 **`capture`**(视频动补),新增 `--capture-run`,
+  从 `run.json` + `diagnostics.json` 填 qa(帧数、fps、穿模帧与占比、最深、脚锁均/最大、是否已落地)。
+  动补不写循环接缝字段。
+- 首个交付:`outputs/video_cap/cap_punch_v2/`(punch.mp4 → X_Bot)。
+  `action_index.py` 已收录,`by_source` 变为 capture=1 / library=10 / model=9。
+- `core/action_index.py`:qa_of() 认识 motion_capture(显示 穿模占比/最深/脚锁),
+  帧列在顶层缺失时回落到 qa.frames。索引行现在读作
+  cap_punch | capture | X_Bot | 2259 | 否 | 否 | 穿模 3.4% / 最深 5.5cm / 脚锁 16.8cm。
+- 文档:`Motion2MixamoRig/README.md` 补"交付落位"一节。
+
 ## 1.0.5.0
 
 新增 **m2mr(视频动补)产线**，落点 `Motion2MixamoRig/`（AIGenAnimPrj 专属子目录）。

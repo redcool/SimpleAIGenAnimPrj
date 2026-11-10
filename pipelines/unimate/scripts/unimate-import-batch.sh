@@ -2,7 +2,7 @@
 # 批量接入动作库片段：把一个目录里的 FBX/GLB 逐个跑产线 B。
 #
 # 用法：
-#   bash scripts/unimate-import-batch.sh \
+#   bash pipelines/unimate/scripts/unimate-import-batch.sh \
 #       --clips Arts/mixamo_rolls \
 #       --rig outputs/rig/X_Bot --name X_Bot \
 #       --expect roll --prefix act_
@@ -90,4 +90,4 @@ echo
 echo "============================================================"
 echo "成功 ${ok} 个，失败 ${fail} 个"
 [ "$fail" = 0 ] || { echo "失败清单：${FAILED[*]}"; exit 1; }
-echo "索引：PYTHONPATH=tools python tools/action_index.py"
+echo "索引：python core/action_index.py"

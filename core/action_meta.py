@@ -6,9 +6,9 @@
 
 字段
 ----
-  name        动作名（建议 gen_* / lib_* / act_*，见 docs/动作产线规范.md）
-  source      model | library | hybrid
-  origin      模型产线写 prompt；库产线写片段文件名
+  name        动作名（建议 gen_* / lib_* / act_* / cap_*，见 docs/动作产线规范.md）
+  source      model | library | hybrid | capture
+  origin      模型产线写 prompt；库产线写片段文件名；动补写视频文件名
   rig         角色名
   frames/fps  时长
   loopable    是否可循环
@@ -44,13 +44,15 @@ def main():
     ap = argparse.ArgumentParser(description="写动作元数据 action.json")
     ap.add_argument("--dir", required=True, help="动作输出目录")
     ap.add_argument("--name", required=True, help="动作名")
-    ap.add_argument("--source", required=True, choices=["model", "library", "hybrid"])
+    ap.add_argument("--source", required=True, choices=["model", "library", "hybrid", "capture"])
     ap.add_argument("--rig", default=None, help="角色名")
     ap.add_argument("--origin", default=None, help="prompt 或片段文件名")
     ap.add_argument("--loopable", action="store_true", help="可循环")
     ap.add_argument("--not-in-place", action="store_true", help="带根位移（默认原地）")
     ap.add_argument("--qa", default=None, help="verify_anim 产的 qa.json")
     ap.add_argument("--loop-report", default=None, help="make_loop 产的 loop_report.json")
+    ap.add_argument("--capture-run", default=None,
+                    help="动补产线的 run 目录（读 run.json 与 diagnostics.json 填 qa）")
     args = ap.parse_args()
 
     out = os.path.abspath(args.dir)
@@ -85,6 +87,33 @@ def main():
             "worst_seam_ratio": round(max(ratios), 2) if ratios else None,
             "frames": sorted({int(f) for f in frames}) if frames else [],
         }
+    elif args.capture_run and os.path.isdir(args.capture_run):
+        # 动补产线没有循环接缝的概念，质量看三件事：自穿插、脚锁修正、是否已落地
+        qa = {"check": "motion_capture"}
+        run_json = os.path.join(args.capture_run, "run.json")
+        diagnostics_json = os.path.join(args.capture_run, "diagnostics.json")
+        if os.path.isfile(run_json):
+            with open(run_json, encoding="utf-8") as fh:
+                run_data = json.load(fh)
+            intersection = ((run_data.get("diagnostics") or {}).get("self_intersection") or {})
+            foot_lock = run_data.get("foot_lock") or {}
+            frame_count = run_data.get("n_frames")
+            qa.update({
+                "frames": frame_count,
+                "fps": round(float(run_data.get("fps") or 0.0), 2),
+                "self_intersection_frames": intersection.get("frame_count"),
+                "self_intersection_share": (round(float(intersection.get("frame_count") or 0) / frame_count, 4)
+                                            if frame_count else None),
+                "self_intersection_max_cm": intersection.get("max_depth_cm"),
+                "foot_lock_mean_cm": foot_lock.get("mean_correction_cm"),
+                "foot_lock_max_cm": foot_lock.get("max_correction_cm"),
+            })
+        if os.path.isfile(diagnostics_json):
+            with open(diagnostics_json, encoding="utf-8") as fh:
+                diagnostics_data = json.load(fh)
+            summary = ((diagnostics_data.get("summary") or {}).get("self_intersection") or {})
+            qa["self_intersection_issues"] = summary.get("issue_count")
+        qa["grounded_variant"] = os.path.isfile(os.path.join(args.capture_run, "mixamo_character_grounded.glb"))
 
     # 动作文件可能在一层子目录里（animated/、animated_inplace/、anim/），一并收进来
     files = []

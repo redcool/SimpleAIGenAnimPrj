@@ -44,6 +44,13 @@ def qa_of(d):
     qa = d.get("qa") or {}
     if not qa:
         return "-"
+    if qa.get("check") == "motion_capture":
+        # 动补没有循环接缝，用三个数看质量
+        share = qa.get("self_intersection_share")
+        depth = qa.get("self_intersection_max_cm")
+        foot_lock = qa.get("foot_lock_max_cm")
+        return "穿模 %.1f%% / 最深 %.1fcm / 脚锁 %.1fcm" % (
+            (share or 0) * 100, depth or 0, foot_lock or 0)
     if qa.get("check") == "loop_report":
         best = qa.get("best_seam_ratio")
         return "接缝最好 %.2f / %d 条" % (best, qa.get("clips", 0)) if best is not None else "循环报告"
@@ -82,7 +89,8 @@ def main():
     for d in items:
         lines.append("| %s | %s | %s | %s | %s | %s | %s | %s |" % (
             d.get("name", "?"), d.get("source", "?"), d.get("rig") or "-",
-            d.get("frames") if d.get("frames") is not None else "-",
+            (d.get("frames") if d.get("frames") is not None
+             else ((d.get("qa") or {}).get("frames") if (d.get("qa") or {}).get("frames") is not None else "-")),
             "是" if d.get("loopable") else "否",
             "是" if d.get("in_place") else "否",
             qa_of(d), d.get("_path", "")))
