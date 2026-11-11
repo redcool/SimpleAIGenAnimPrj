@@ -138,7 +138,8 @@ qa = json.load(open("$QA_JSON", encoding="utf-8")) if os.path.isfile("$QA_JSON")
 item = qa["items"][0] if qa.get("items") else {}
 meta = {
     "kind": "action",
-    "version": "1.0.1.0",
+    # 版本号从仓库根的 VERSION 读，避免和实际版本对不上
+    "version": open(os.path.join("$PIPELINE_HOME", "VERSION"), encoding="utf-8").read().strip(),
     "name": "$ACTION",
     "source": "library",
     "origin": os.path.basename("$CLIP"),

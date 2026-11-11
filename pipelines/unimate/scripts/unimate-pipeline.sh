@@ -87,8 +87,12 @@ echo "== [1/5] 体检"
 INSPECT_JSON=$TMP/inspect.json
 "$PY" "$TOOLS/inspect_rig.py" --input "$INPUT" --json "$INSPECT_JSON" --no-bones 2>&1 \
   | grep -vE "User property type|^FBX version" || true
-BONES=$("$PY" -c "import json;print(json.load(open('$INSPECT_JSON'))['bone_count'])" 2>/dev/null)
-[ -n "$BONES" ] || BONES=-1
+# 体检失败就停：过去这里回落成 -1 继续跑，最后报一个和根因无关的错（纪律：禁止静默失败）
+if ! BONES=$("$PY" -c "import json;print(json.load(open('$INSPECT_JSON'))['bone_count'])" 2>&1); then
+  echo "体检失败：读不到关节数（$INSPECT_JSON）。先看上面的报错，或单独跑：" >&2
+  echo "  bash pipelines/unimate/scripts/unimate-inspect.sh --input $INPUT" >&2
+  exit 4
+fi
 echo "  关节数: $BONES（目标 $TARGET）"
 
 # 人体专用权重只吃 Mixamo 22 关节。不是 Mixamo 绑定就早点说清楚，
@@ -136,7 +140,10 @@ else
     CURRENT_ASSET="<精简后的资产>"
   else
     "$PY" "${SIM_ARGS[@]}" 2>&1 | grep -vE "User property type|WARNING: Animation target|^FBX version" || true
-    CURRENT_ASSET=$("$PY" -c "import json;print(json.load(open('$TMP/simplify.report.json'))['outputs'][0])" 2>/dev/null)
+    if ! CURRENT_ASSET=$("$PY" -c "import json;print(json.load(open('$TMP/simplify.report.json'))['outputs'][0])" 2>&1); then
+      echo "精简后读不到输出文件（$TMP/simplify.report.json），停止。" >&2
+      exit 5
+    fi
     [ -n "$CURRENT_ASSET" ] || { echo "精简没有产出文件，停止" >&2; exit 1; }
     echo "  精简后: $CURRENT_ASSET"
   fi

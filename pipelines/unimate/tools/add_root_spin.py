@@ -31,6 +31,11 @@ import re
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
+try:                                    # 版本号唯一来源是仓库根的 VERSION
+    import pipeline_config as _cfg
+except Exception:
+    _cfg = None
+
 AXES = {
     "lateral": Vector((1.0, 0.0, 0.0)),    # 横轴：前滚翻 / 后滚翻
     "vertical": Vector((0.0, 0.0, 1.0)),   # 竖直轴：原地转身
@@ -172,7 +177,8 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     formats = [f.strip().lstrip(".") for f in args.formats.split(",") if f.strip()]
-    report = {"tool": "add_root_spin", "version": "1.0.0.6", "items": []}
+    report = {"tool": "add_root_spin",
+              "version": (_cfg.version() if _cfg else "0.0.0.0"), "items": []}
     for f in files:
         log("== %s" % os.path.basename(f))
         r = add_spin(f, args.turns, args.axis, out_dir, formats, args.ease)

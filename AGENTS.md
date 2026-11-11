@@ -408,7 +408,13 @@ python core/action_index.py
 
 ## 10. 改动本工程时
 
-- 改完跑一遍 `bash -n`（脚本）和 `python -m py_compile`（工具）。
+- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（26 项断言，约 5 秒）。
+  覆盖：关节识别、循环检测（合成周期数据）、静止保护、动作契约字段、动作索引重名、工具可导入。
+- 再跑 `bash -n`（脚本）和 `python -m py_compile`（工具）。
+- 版本号只有一个来源 `VERSION`；工具里要版本就读 `pipeline_config.version()`，
+  不许写死字面量（审核时抓到两处写死的，已修）。
+- 失败要吵：读不到中间产物就 `exit` + 说明原因，不许回落默认值继续跑
+  （`unimate-pipeline.sh` 的体检分支是范例）。
 - 对上游的调用只允许出现在 `pipelines/unimate/tools/unimate_api.py`；其它文件不许 `import unimate`。
 - 端到端回归：拿 `Arts/X Bot.fbx` 跑一次 `unimate-loop.sh`，接缝倍数应与上次一致
   （走/跑 0.6~1.3，待机走 `--close` 后 1.4~2.2）。
