@@ -3,6 +3,20 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.6.0
+
+把"两版交付"从一次性脚本变成产线能力（此前只有我在 tmp 里手写脚本做过，仓库无法复现）。
+
+- 新增 `pipelines/unimate/tools/deliver_pack.py`：一条命令产出
+  `anim/`（循环版，自动挑真实周期 + 接缝最接近 1 的那条）、
+  `full/`（完整序列：原地版 `*_full.fbx` + 带位移 `*_full_motion.fbx`）、
+  `full/cycle_candidates.txt`（候选循环帧号）、`<名>_character.fbx` 与 `action.json`。
+- 新增 `pipelines/unimate/scripts/unimate-pack.sh` 作为入口。
+- 角色本体：循环目录里没有时，会在循环目录与采样目录下递归找 `*_character.fbx`；
+  仍没有就明确警告"去 rig 目录用 GLB 建 Avatar"，不再静默缺文件。
+- 冒烟测试 56 → **59 项**：新增两版交付的挑片逻辑（gait 解析、真周期优先）。
+- AGENTS §9 与产线 README 补上打包命令。
+
 ## 1.0.5.9
 
 动补产线出**操作手册**,并把 punch 的 v3 升为正式条目。

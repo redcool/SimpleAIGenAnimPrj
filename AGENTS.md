@@ -285,7 +285,10 @@ docs/动作能力清单.md）：
 自查：`python pipelines/unimate/tools/caption_stats.py --meta tmp/meta --grep <动作词>`
 （元数据几 MB，不用下 88 GB 数据集）。
 
-**循环点怎么定**（v1.0.4.3 起）：能认出四肢时按**四肢末端的轨迹**找 ——
+**循环点怎么定**（v1.0.4.3 起，v1.0.5.6 调整）：**四足按脚、两足按姿态** ——
+四条腿才用四肢末端轨迹（两个接触点太容易碰巧对上，上身可能拧着：
+实测人形按脚时旋转接缝从 0.75 劣化到 1.4）；两条腿退回按全身旋转，结果与历史一致。
+四足的规则是：
 在整段里找两帧"几只脚几乎相同"，前一帧当起点、后一帧当终点
 （`make_loop.py --basis feet`，四足默认走这条）。判"像不像"用的是**脚的行程比例**
 （`--foot-tolerance 0.12`），不是绝对距离，否则大小体型不能用同一套阈值。
@@ -396,6 +399,14 @@ bash pipelines/unimate/scripts/unimate-loop.sh --samples outputs/samples/<资产
 `full/` 是**未处理的完整序列**（Tiger/Horse 的 walk/run 是 160 帧 3 段串接）
 外加 `cycle_candidates.txt` 列出候选循环点（帧号 + 脚差）。
 人工发现循环不对时，按清单帧号在完整序列里自己切。
+出这两版用一条命令（内部会挑片、拉平、写清单、写 action.json）：
+
+```bash
+bash pipelines/unimate/scripts/unimate-pack.sh \
+    --samples outputs/samples/Dog_001 --loop-dir <循环化产物> \
+    --name Dog_001 --out outputs/actions/Dog_001_pack
+```
+
 清单随时可重生成：`python pipelines/unimate/tools/cycle_candidates.py --samples <目录> --top 12`。
 
 批量接入 + 索引：

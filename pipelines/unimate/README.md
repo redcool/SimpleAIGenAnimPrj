@@ -18,6 +18,7 @@
 | `unimate-loop.sh` | 循环化 + 原地化 + 打包 Unity + 写 action.json | 走跑待机要循环 |
 | `unimate-import-clip.sh` | 动作库片段接入（精简→特征→对齐→驱动→闸门） | 模型做不出的动作 |
 | `unimate-import-batch.sh` | 批量接入一个目录 | 一次下了一批库片段 |
+| `unimate-pack.sh` | 打包两版交付（调 `deliver_pack.py`） | 交付前 |
 | `install_blender_shim.sh` | 装 blender 命令的 shim（用 bpy 代替） | 一次性 |
 
 ## 工具（`tools/`）
@@ -37,6 +38,7 @@
 | `verify_anim.py` | 整体翻转与四肢动作分开量（质量闸门） |
 | `roll_check.py` | 判断有没有真翻过去 |
 | `cycle_candidates.py` | 列出候选循环区间（帧号 + 脚差） |
+| `deliver_pack.py` | 打包两版交付：`anim/`（循环版）+ `full/`（完整序列 + 候选帧清单） |
 | `remap_motion_joints.py` | 库片段与角色关节顺序对齐 |
 | `rig_joints.py` | 四肢识别（gait_report 与 make_loop 共用） |
 | `caption_stats.py` | 查某个动作在训练分布里的占比 |

@@ -192,6 +192,45 @@ def test_module_split() -> None:
         check("make_loop 仍导出 %s" % legacy, hasattr(make_loop, legacy))
 
 
+def test_deliver_pack() -> None:
+    print("\n4c) 两版交付的挑片逻辑（deliver_pack）")
+    import deliver_pack as dp
+
+    tmp = tempfile.mkdtemp(prefix="smoke_pack_")
+    try:
+        # 造一份 gait 报告：run 一条成型、一条不典型
+        gait_txt = """
+=== a_runs_forward.npy ===
+    后右 toe.R                    竖直摆幅 0.04
+  判定: 前后各自同相 → 袭步/跳跃式（左右 +0.9），跑动正常
+=== b_runs_forward.npy ===
+    后右 toe.R                    竖直摆幅 0.01
+  判定: 相位不典型，需看视频确认
+"""
+        gait_path = os.path.join(tmp, "gait_report.txt")
+        open(gait_path, "w", encoding="utf-8").write(gait_txt)
+        gait = dp.parse_gait(gait_path)
+        check("gait 解析出两条", len(gait) == 2, str(list(gait)))
+
+        # 造 loop_report + 假的 animated_inplace 文件
+        anim = os.path.join(tmp, "animated_inplace")
+        os.makedirs(anim)
+        for name in ("a_runs_forward", "b_runs_forward"):
+            open(os.path.join(anim, name + ".fbx"), "w").close()
+        report = {"items": {
+            "a_runs_forward.npy": {"period_detected": 22, "frames_in": 60,
+                                   "foot_seam_ratio": 0.9},
+            "b_runs_forward.npy": {"period_detected": 60, "frames_in": 60,
+                                   "foot_seam_ratio": None},
+        }}
+        json.dump(report, open(os.path.join(tmp, "loop_report.json"), "w", encoding="utf-8"))
+        chosen = dp.pick_looped(tmp, "runs_forward", gait)
+        check("挑到真周期那条", chosen and chosen[2] == "a_runs_forward.npy",
+              str(chosen[2]) if chosen else "None")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_action_meta() -> None:
     print("\n4) 动作契约 action_meta")
     tmp = tempfile.mkdtemp(prefix="smoke_meta_")
@@ -263,7 +302,7 @@ def test_action_index() -> None:
 def test_imports() -> None:
     print("\n6) 工具可导入")
     for mod in ("make_loop", "cycle_search", "loop_cut", "rig_joints",
-                "gait_report", "cycle_candidates"):
+                "gait_report", "cycle_candidates", "deliver_pack"):
         try:
             __import__(mod)
             check("import %s" % mod, True)
@@ -422,7 +461,7 @@ def main() -> int:
     print("冒烟测试（工程根 %s）" % ROOT)
     for fn in (test_limbs, test_cycle_feet, test_loop_cut, test_period_ceiling,
                test_basis_rule, test_module_split, test_action_meta, test_schema, test_action_index,
-               test_imports, test_motion2mixamo):
+               test_deliver_pack, test_imports, test_motion2mixamo):
         try:
             fn()
         except Exception as exc:            # 单个用例炸了不拦其它用例
