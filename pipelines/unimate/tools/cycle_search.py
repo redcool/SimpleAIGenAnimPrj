@@ -156,7 +156,9 @@ class CycleOptions:
     """一次搜索的全部参数（从 CLI 传来的都是这些）。"""
     basis: str = "auto"                 # auto | feet | rot
     min_period: int = 20
-    max_period: int = 58
+    # None = 按片段长度自动放宽。60 帧的老素材仍按 58 算（历史行为不变），
+    # 160 帧的长片段允许找到更长的周期，否则真周期会被上限切掉。
+    max_period: int | None = None
     foot_min_period: int = 8
     min_foot_travel: float = 0.55
     foot_tolerance: float = 0.12
@@ -180,9 +182,22 @@ class CycleChoice:
     seam_ratio: float | None = None      # 候选打分时算出的接缝比
 
 
+def period_ceiling(x: np.ndarray, opts: CycleOptions) -> int:
+    """周期搜索的上限：显式给了就用；没给就按片段长度放宽。
+
+    历史默认 58 是给 60 帧素材定的；长片段（如 160 帧的串接）如果还按 58，
+    真正的 70~90 帧周期会被直接切掉，表现成"找不到周期"。
+    """
+    T = x.shape[0]
+    if opts.max_period:
+        return int(opts.max_period)
+    return int(max(58, T * 0.9))
+
+
 def choose_cycle(x: np.ndarray, feet: dict, opts: CycleOptions) -> CycleChoice:
     """按依据选周期；静止或找不到时返回"整段"（period = 总帧数）。"""
     T = x.shape[0]
+    ceiling = period_ceiling(x, opts)
     basis = opts.basis
     if basis == "auto":
         basis = "feet" if len(feet) >= 2 else "rot"
@@ -201,7 +216,7 @@ def choose_cycle(x: np.ndarray, feet: dict, opts: CycleOptions) -> CycleChoice:
             return CycleChoice(start=0, period=T, cyclic=False, basis="feet(静止,整段)")
 
         start, L, err, verr, cands = find_cycle_feet(
-            x, feet, lo, min(opts.max_period, T - 2), start_max=smax,
+            x, feet, lo, min(ceiling, T - 2), start_max=smax,
             min_travel=opts.min_foot_travel * rng)
 
         # 周期误差小不等于接缝好看：先筛掉超容差的候选，
@@ -227,7 +242,7 @@ def choose_cycle(x: np.ndarray, feet: dict, opts: CycleOptions) -> CycleChoice:
 
     smax = 0 if opts.anchor else opts.max_start
     start, L, err, verr, cands = find_cycle(
-        x, opts.min_period, min(opts.max_period, T - 2), start_max=smax)
+        x, opts.min_period, min(ceiling, T - 2), start_max=smax)
     med0 = median_step(x)
     cyclic = bool(med0 > 0 and err < opts.period_tolerance * med0)
     if not cyclic:

@@ -93,7 +93,8 @@ def main() -> None:
     ap.add_argument("--out", default=None, help="输出目录，默认 <samples>_loop")
     ap.add_argument("--only", default=None, help="只处理文件名含此子串的动作")
     ap.add_argument("--min-period", type=int, default=20)
-    ap.add_argument("--max-period", type=int, default=58)
+    ap.add_argument("--max-period", type=int, default=None,
+                    help="周期上限；默认按片段长度放宽（60 帧素材仍是 58，长片段到 90%% 帧数）")
     ap.add_argument("--seam", type=int, default=8, help="接缝交叉淡化帧数")
     ap.add_argument("--period", type=int, default=None, help="强制指定周期，跳过检测")
     ap.add_argument("--max-start", type=int, default=None,
