@@ -3,6 +3,25 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.5.3
+
+审核后 P1 两项。
+
+- **拆 `make_loop.py`**（原 470 行、12 个参数、混了四件事）：
+  - `cycle_search.py`（236 行）：找周期。`CycleOptions` / `CycleChoice` 两个数据类，
+    `choose_cycle()` 收敛"按脚 / 按旋转 / 静止保护 / 候选打分"四种决策。
+  - `loop_cut.py`（126 行）：切片段。`cut_loop` / `seam_metrics` / `foot_seam` / `loop_verdict`。
+  - `make_loop.py`（228 行）：只剩 CLI 与报告；旧名字（`make_loop`、`find_cycle_feet` 等）
+    仍从这里导出，外部调用与测试不用改。
+  验证：同一批 Dog 采样，重构前后 `loop_report.json` **逐字段一致**（唯一允许的差异见下条）。
+- **`foot_seam_ratio` 语义修正**：整段收拢（head-hold）时首尾被强行拉平，原值恒为 0.0，
+  读起来像"接缝完美"。现在返回 `null`，判定文案由 `loop_mode` 说明是"停一帧"。
+- 冒烟测试扩到 **42 项**：新增切循环语义（周期模式 / 收拢模式 / 脚接缝为 null）、
+  判定优先级（脚差太多优先报警）、拆分后的模块边界（`cycle_search` 不依赖 `loop_cut`、
+  `loop_cut` 不负责找周期、`make_loop` 仍导出旧名）。
+- AGENTS §10 补一条：改算法去 `cycle_search.py`，改切法去 `loop_cut.py`，
+  `make_loop.py` 只做编排。
+
 ## 1.0.5.2
 
 代码审核后补 P0 三项（审核报告见会话记录）。

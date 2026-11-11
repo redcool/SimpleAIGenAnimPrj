@@ -25,7 +25,9 @@
 | 工具 | 职责 |
 |---|---|
 | `unimate_api.py` | **唯一** import UniMate 内部的文件 |
-| `make_loop.py` | 找周期（默认按四肢轨迹）+ 切循环 + 接缝淡化 |
+| `make_loop.py` | **编排层**：解析参数、逐条跑流程、写 `loop_report.json`（228 行） |
+| `cycle_search.py` | 找周期：按四肢轨迹 / 按全身旋转 / 静止保护 / 候选打分（236 行） |
+| `loop_cut.py` | 切循环：裁剪、接缝淡化、接缝指标、一句判定（126 行） |
 | `loop_close.py` | 让模型把末帧收回首帧（待机这类没有周期时用） |
 | `flatten_root.py` | 根位移拉平，变原地动作 |
 | `add_root_spin.py` | 给根骨补旋转（只适合刚体） |

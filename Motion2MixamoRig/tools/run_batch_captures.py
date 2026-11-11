@@ -23,9 +23,12 @@ from pathlib import Path
 
 LOGGER = logging.getLogger("motion2mixamo.batch")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = Path(__file__).resolve().parent
-MOTION2MIXAMO_ROOT = Path(r"H:\aiworks\motionPrj\Motion2MixamoRig")
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+import motion2mixamo_config as config  # noqa: E402
+
 VIDEO_SUFFIXES = (".mp4", ".mov", ".avi", ".mkv", ".webm")
 
 FAIL_FRAME_SHARE = 0.15
@@ -57,9 +60,8 @@ class CaptureRecord:
 
 
 def build_environment() -> dict[str, str]:
-    """所有缓存都落在本工程 tmp 下,避免写到用户目录或引用库。"""
-    temporary_root = PROJECT_ROOT / "tmp"
-    temporary_root.mkdir(parents=True, exist_ok=True)
+    """所有缓存都落在本模块 tmp 下,避免写到用户目录或引用库。"""
+    temporary_root = config.module_tmp()
     environment = os.environ.copy()
     environment.update({
         "TMP": str(temporary_root),
@@ -89,19 +91,19 @@ def probe_duration_seconds(clip: Path) -> float | None:
 
 
 def run_single_capture(clip: Path, rig: Path, output_directory: Path, focal_pixels: float | None,
-                       environment: dict[str, str]) -> CaptureRecord:
-    """跑一条素材并归档指标。"""
+                       reference_python: str, device: str, environment: dict[str, str]) -> CaptureRecord:
+    """跑一条素材并归档指标。解释器与设备都由调用方给定,不在这里猜。"""
     record = CaptureRecord(clip=clip.name)
     started_at = time.time()
     command = [
-        sys.executable, str(TOOLS_ROOT / "motion2mixamo_command.py"), "run",
-        "--video", str(clip), "--rig", str(rig), "--device", "cuda",
+        reference_python, str(TOOLS_ROOT / "motion2mixamo_command.py"), "run",
+        "--video", str(clip), "--rig", str(rig), "--device", device,
         "--output-dir", str(output_directory), "--no-preview",
     ]
     if focal_pixels:
         environment = dict(environment)
         environment["MOTION2MIXAMO_FOCAL_PIXELS"] = str(focal_pixels)
-    completed = subprocess.run(command, cwd=str(MOTION2MIXAMO_ROOT), env=environment,
+    completed = subprocess.run(command, cwd=str(config.motion2mixamo_home()), env=environment,
                                capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     record.elapsed_seconds = round(time.time() - started_at, 1)
     if completed.returncode != 0:
@@ -130,8 +132,8 @@ def run_single_capture(clip: Path, rig: Path, output_directory: Path, focal_pixe
         record.self_intersection_share = round(float(record.self_intersection_frames or 0) / record.frame_count, 4)
 
     grounding = subprocess.run(
-        [sys.executable, str(TOOLS_ROOT / "ground_character_on_floor.py"), str(output_directory)],
-        cwd=str(MOTION2MIXAMO_ROOT), env=environment, capture_output=True, text=True,
+        [reference_python, str(TOOLS_ROOT / "ground_character_on_floor.py"), str(output_directory)],
+        cwd=str(config.motion2mixamo_home()), env=environment, capture_output=True, text=True,
         encoding="utf-8", errors="replace", check=False, timeout=3600,
     )
     record.grounded = (output_directory / "mixamo_character_grounded.glb").exists()
@@ -210,17 +212,32 @@ def write_reports(records: list[CaptureRecord], report_directory: Path) -> tuple
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s", stream=sys.stdout)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--videos", default=str(MOTION2MIXAMO_ROOT / "assets" / "video"))
-    parser.add_argument("--rig", default=str(MOTION2MIXAMO_ROOT / "assets" / "mixamo" / "X_Bot.fbx"))
-    parser.add_argument("--out", default=str(PROJECT_ROOT / "outputs" / "motion2mixamo" / "batch"))
+    parser.add_argument("--videos", default=str(config.assets_video()))
+    parser.add_argument("--rig", default=str(config.default_rig()))
+    parser.add_argument("--out", default=str(config.video_cap_output_root()),
+                        help="交付根目录,默认 outputs/video_cap")
     parser.add_argument("--report", default=None, help="报告目录,默认与 --out 相同")
-    parser.add_argument("--focal-pixels", type=float, default=None)
+    parser.add_argument("--device", default="cuda", choices=["cpu", "cuda", "mps"],
+                        help="推理设备,默认 cuda")
+    parser.add_argument("--python", default=None,
+                        help="跑引用库的解释器,默认取配置(MOTION2MIXAMO_PYTHON 或 <HOME>/.venv)")
+    parser.add_argument("--focal-pixels", type=float,
+                        default=config.default_focal_pixels(),
+                        help="相机焦距(像素);默认取配置里的 MOTION2MIXAMO_FOCAL_PIXELS")
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--min-seconds", type=float, default=2.0)
     parser.add_argument("--limit", type=int, default=None)
     arguments = parser.parse_args()
 
+    reference_python = arguments.python or config.resolve_reference_python()
+    LOGGER.info("引用库 %s", config.motion2mixamo_home())
+    LOGGER.info("解释器 %s", reference_python)
+    LOGGER.info("设备 %s | 交付根 %s", arguments.device, arguments.out)
+
     video_directory = Path(arguments.videos)
+    if not video_directory.is_dir():
+        LOGGER.error("素材目录不存在: %s", video_directory)
+        return 1
     clips = sorted(path for path in video_directory.iterdir() if path.suffix.lower() in VIDEO_SUFFIXES)
     if arguments.limit:
         clips = clips[: arguments.limit]
@@ -242,7 +259,8 @@ def main() -> int:
             LOGGER.info("[%d/%d] %s 已处理,跳过", index, len(clips), clip.name)
             continue
         LOGGER.info("[%d/%d] %s (%.1fs)", index, len(clips), clip.name, duration or 0.0)
-        record = run_single_capture(clip, rig_path, clip_output, arguments.focal_pixels, environment)
+        record = run_single_capture(clip, rig_path, clip_output, arguments.focal_pixels,
+                                   reference_python, arguments.device, environment)
         record.duration_seconds = round(duration, 2) if duration else None
         records.append(record)
         LOGGER.info("    %s %s", record.verdict, record.note)

@@ -23,10 +23,13 @@ import numpy as np
 
 LOGGER = logging.getLogger("motion2mixamo.ground")
 
-MOTION2MIXAMO_ROOT = Path(r"H:\aiworks\motionPrj\Motion2MixamoRig")
-if str(MOTION2MIXAMO_ROOT) not in sys.path:
-    sys.path.insert(0, str(MOTION2MIXAMO_ROOT))
+TOOLS_ROOT = Path(__file__).resolve().parent
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
 
+import motion2mixamo_config as config  # noqa: E402
+
+config.ensure_reference_package_importable()
 from motion2mixamorig.diagnose import SkinnedClip  # noqa: E402  (只读引用)
 
 GLB_MAGIC = 0x46546C67

@@ -27,7 +27,7 @@ FOCAL_MILLIMETRES_ENV_NAME = "MOTION2MIXAMO_FOCAL_MILLIMETRES"
 
 
 def _read_focal_override() -> dict[str, float]:
-    """读取焦距覆盖参数;像素优先于毫米。"""
+    """读取焦距覆盖参数;像素优先于毫米;都没有就返回空(上游走启发式)。"""
     pixels_text = os.environ.get(FOCAL_PIXELS_ENV_NAME, "").strip()
     millimetres_text = os.environ.get(FOCAL_MILLIMETRES_ENV_NAME, "").strip()
     if pixels_text:
@@ -35,6 +35,15 @@ def _read_focal_override() -> dict[str, float]:
     if millimetres_text:
         return {"f_mm": float(millimetres_text)}
     return {}
+
+
+def _report_focal_state() -> None:
+    """没有焦距时要说出来 —— 否则用户不知道世界尺度是按 43mm 估的。"""
+    if _read_focal_override():
+        return
+    LOGGER.warning(
+        "未提供相机焦距:世界位移会按 ~43mm 等效镜头估算(手机主摄约高估 65%%)。"
+        "可用 --focal-pixels / MOTION2MIXAMO_FOCAL_PIXELS 或在 config.env 里配置。")
 
 
 def install_focal_injection() -> None:
@@ -59,6 +68,8 @@ def install_focal_injection() -> None:
             LOGGER.info("注入相机焦距 %s", override)
             for key, value in override.items():
                 kwargs.setdefault(key, value)
+        else:
+            _report_focal_state()
         return original_recover(video, **kwargs)
 
     recover_with_focal._motion2mixamo_focal_wrapped = True  # type: ignore[attr-defined]

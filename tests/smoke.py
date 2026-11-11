@@ -94,6 +94,55 @@ def test_cycle_feet() -> None:
           "%.5f" % foot_range(still, feet))
 
 
+def test_loop_cut() -> None:
+    print("\n2b) 切循环与判定（拆分后的 loop_cut）")
+    from cycle_search import CycleOptions, choose_cycle
+    from loop_cut import cut_loop, foot_seam, loop_verdict
+
+    frames, joints = 80, 6
+    x = np.zeros((frames, joints, 12), dtype=np.float32)
+    t_axis = np.arange(frames)
+    for j in range(joints):
+        x[:, j, 0] = 0.3 * np.sin(2 * np.pi * t_axis / 20.0 + j * 0.3)
+        x[:, j, 3] = 1.0
+    feet = {"后左": 0, "后右": 1, "前左": 2, "前右": 3}
+
+    choice = choose_cycle(x, feet, CycleOptions(basis="feet"))
+    check("choose_cycle 找到周期", choice.period == 20 and choice.cyclic,
+          "period=%d cyclic=%s" % (choice.period, choice.cyclic))
+
+    # 真实调用是"先用整段搜到周期，再把整段交给 cut_loop"，period < T 才是周期模式
+    looped, info = cut_loop(x, choice.period, 4, True)
+    check("切出的帧数=周期", looped.shape[0] == 20, str(looped.shape))
+    check("模式是 periodic", info["mode"] == "periodic", info["mode"])
+
+    # 待机（整段收拢）时脚接缝必须是 None，不能是 0.0（0.0 会被读成"完美"）
+    still = np.zeros((60, joints, 12), dtype=np.float32)
+    hold, hinfo = cut_loop(still, 60, 8, True)
+    check("整段收拢模式", hinfo["mode"] == "head-hold", hinfo["mode"])
+    check("收拢时脚接缝为 None", foot_seam(hold, feet, hinfo["mode"]) is None,
+          str(foot_seam(hold, feet, hinfo["mode"])))
+
+    check("好循环判定", loop_verdict(1.0, 0.01, "periodic", 1.0) == "好循环")
+    check("脚差太多优先报警",
+          "脚差了" in loop_verdict(0.5, 0.01, "periodic", 2.0),
+          loop_verdict(0.5, 0.01, "periodic", 2.0))
+
+
+def test_module_split() -> None:
+    print("\n2c) 拆分后的模块边界")
+    import cycle_search
+    import loop_cut
+    import make_loop
+
+    check("cycle_search 不 import loop_cut",
+          "loop_cut" not in open(cycle_search.__file__, encoding="utf-8").read())
+    check("loop_cut 只依赖 cycle_search 的基础函数",
+          "find_cycle_feet" not in open(loop_cut.__file__, encoding="utf-8").read())
+    for legacy in ("find_cycle_feet", "foot_range", "foot_step", "make_loop", "seam_metrics"):
+        check("make_loop 仍导出 %s" % legacy, hasattr(make_loop, legacy))
+
+
 def test_action_meta() -> None:
     print("\n4) 动作契约 action_meta")
     tmp = tempfile.mkdtemp(prefix="smoke_meta_")
@@ -143,7 +192,8 @@ def test_action_index() -> None:
 
 def test_imports() -> None:
     print("\n6) 工具可导入")
-    for mod in ("make_loop", "rig_joints", "gait_report", "cycle_candidates"):
+    for mod in ("make_loop", "cycle_search", "loop_cut", "rig_joints",
+                "gait_report", "cycle_candidates"):
         try:
             __import__(mod)
             check("import %s" % mod, True)
@@ -153,8 +203,8 @@ def test_imports() -> None:
 
 def main() -> int:
     print("冒烟测试（工程根 %s）" % ROOT)
-    for fn in (test_limbs, test_cycle_feet, test_action_meta,
-               test_action_index, test_imports):
+    for fn in (test_limbs, test_cycle_feet, test_loop_cut, test_module_split,
+               test_action_meta, test_action_index, test_imports):
         try:
             fn()
         except Exception as exc:            # 单个用例炸了不拦其它用例
