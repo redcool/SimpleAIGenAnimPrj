@@ -408,7 +408,7 @@ python core/action_index.py
 
 ## 10. 改动本工程时
 
-- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（42 项断言，约 6 秒）。
+- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（48 项断言，约 7 秒）。
   覆盖：关节识别、循环检测（合成周期数据）、静止保护、切循环语义、模块边界、
   动作契约字段、动作索引重名、工具可导入。
 - 再跑 `bash -n`（脚本）和 `python -m py_compile`（工具）。
@@ -421,4 +421,9 @@ python core/action_index.py
   `make_loop.py` 只是编排层，不要往里加算法。
 - 端到端回归：拿 `Arts/X Bot.fbx` 跑一次 `unimate-loop.sh`，接缝倍数应与上次一致
   （走/跑 0.6~1.3，待机走 `--close` 后 1.4~2.2）。
+- **提交前先 `git status`**：只 `git add` 自己改过的文件（写显式路径，不用 `-A`）。
+  这个仓库有多个会话并行改动，`-A` 会把别人未完成的改动一起提交（已经发生过两次）。
+  看到不属于自己的改动就停下来问。
+- 动作契约（`source` 允许值、必填字段、`loop_mode`）唯一出处是
+  `core/action_schema.py`；加来源/加字段只改那里，工具与文档跟着走。
 - 版本号：字段改动 → w+1；新增能力 → z+1 并在 `CHANGELOG.md` 写清楚。

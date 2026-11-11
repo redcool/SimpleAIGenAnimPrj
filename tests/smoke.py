@@ -164,6 +164,27 @@ def test_action_meta() -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_schema() -> None:
+    print("\n4b) 动作契约定义（core/action_schema.py）")
+    from action_schema import KIND, LOOP_MODES, SOURCES, validate
+
+    ok = {"kind": KIND, "version": "1.0.0.0", "name": "gen_x", "source": "model",
+          "in_place": True, "files": []}
+    check("合格样本无问题", validate(ok) == [], str(validate(ok)))
+
+    for bad_case, expect in (
+        ({"kind": KIND, "name": "x", "source": "model", "in_place": True, "files": []},
+         "缺 version"),
+        (dict(ok, source="teleport"), "source 不在允许值"),
+        (dict(ok, in_place="yes"), "in_place 类型"),
+    ):
+        problems = validate(bad_case)
+        check("能报出：%s" % expect, bool(problems), str(problems)[:70])
+
+    check("capture 是合法来源", "capture" in SOURCES, str(sorted(SOURCES)))
+    check("loop_mode 定义齐全", set(LOOP_MODES) == {"periodic", "head-hold"}, str(LOOP_MODES))
+
+
 def test_action_index() -> None:
     print("\n5) 动作索引")
     tmp = tempfile.mkdtemp(prefix="smoke_index_")
@@ -204,7 +225,7 @@ def test_imports() -> None:
 def main() -> int:
     print("冒烟测试（工程根 %s）" % ROOT)
     for fn in (test_limbs, test_cycle_feet, test_loop_cut, test_module_split,
-               test_action_meta, test_action_index, test_imports):
+               test_action_meta, test_schema, test_action_index, test_imports):
         try:
             fn()
         except Exception as exc:            # 单个用例炸了不拦其它用例

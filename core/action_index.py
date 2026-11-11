@@ -18,6 +18,7 @@ import json
 import os
 
 import pipeline_config as cfg
+from action_schema import SOURCES, validate
 
 
 def load(root):
@@ -33,6 +34,8 @@ def load(root):
             bad.append((path, str(exc)))
             continue
         d["_path"] = os.path.relpath(dirpath, root)
+        # 契约校验（source 不认识、字段缺失、类型不对）
+        d["_contract"] = validate(d)
         # 文件是否真的在
         missing = [f for f in d.get("files", []) if not os.path.isfile(os.path.join(dirpath, f))]
         d["_missing"] = missing
@@ -133,6 +136,11 @@ def main():
         problems.append("质检不通过 %d 个：%s" % (len(failed), failed[:5]))
     if bad:
         problems.append("action.json 读不了 %d 个：%s" % (len(bad), [b[0] for b in bad[:3]]))
+
+    # 不符合契约的（字段缺失、source 不认识）：这是"写进去就算错"，单独提出来
+    broken = [(d.get("_path"), d["_contract"]) for d in items if d.get("_contract")]
+    if broken:
+        problems.append("不符合动作契约 %d 个：%s" % (len(broken), broken[:3]))
 
     if problems and not args.json_only:
         print()

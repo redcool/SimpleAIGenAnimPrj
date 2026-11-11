@@ -38,13 +38,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pipeline_config as cfg
+from action_schema import KIND, SOURCES, validate
 
 
 def main():
     ap = argparse.ArgumentParser(description="写动作元数据 action.json")
     ap.add_argument("--dir", required=True, help="动作输出目录")
     ap.add_argument("--name", required=True, help="动作名")
-    ap.add_argument("--source", required=True, choices=["model", "library", "hybrid", "capture"])
+    # 取值来源是 core/action_schema.py，加新来源只改那一处
+    ap.add_argument("--source", required=True, choices=sorted(SOURCES),
+                    help="动作来源：%s" % "，".join("%s=%s" % (k, v) for k, v in SOURCES.items()))
     ap.add_argument("--rig", default=None, help="角色名")
     ap.add_argument("--origin", default=None, help="prompt 或片段文件名")
     ap.add_argument("--loopable", action="store_true", help="可循环")
@@ -126,7 +129,7 @@ def main():
                 if sub.endswith((".fbx", ".glb")):
                     files.append(os.path.join(name, sub))
     meta = {
-        "kind": "action",
+        "kind": KIND,
         "version": cfg.version(),
         "name": args.name,
         "source": args.source,
@@ -138,6 +141,10 @@ def main():
         "qa": qa,
         "created": datetime.date.today().isoformat(),
     }
+    problems = validate(meta)
+    if problems:
+        raise SystemExit("action.json 不符合契约：%s" % "；".join(problems))
+
     path = os.path.join(out, "action.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=2, ensure_ascii=False)

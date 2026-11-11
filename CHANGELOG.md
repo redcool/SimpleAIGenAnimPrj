@@ -3,6 +3,29 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.5.4
+
+动补产线**去硬编码**:路径改配置驱动(审核发现 3 处写死 `H:\aiworks\motionPrj\Motion2MixamoRig`)。
+
+- 新增 `Motion2MixamoRig/tools/motion2mixamo_config.py`:统一解析路径与可执行文件,
+  顺序为 **环境变量 > Motion2MixamoRig/config.env > 从当前工作目录逐级向上找(认含 motion2mixamorig/ 的目录)
+  > 明确报错**。不再回落到假路径;找不到时打印三种配法。
+- 新增 `Motion2MixamoRig/config.example.env`(模板,入库)与 `config.env`(本机,不入库)。
+  可配:`MOTION2MIXAMO_HOME / _PYTHON / _ASSETS_VIDEO / _DEFAULT_RIG / _OUTPUT_ROOT / _FOCAL_PIXELS`、`BLENDER_EXECUTABLE`。
+  自检命令:`python tools/motion2mixamo_config.py`。
+- `run_batch_captures.py`:
+  · 默认交付根改为 `outputs/video_cap`(原 `outputs/motion2mixamo/batch` 与新约定不符);
+  · 新增 `--device`(原来写死 cuda)与 `--python`(默认取配置,并校验存在,缺了就报错不猜);
+  · 批量报告改落 `outputs/video_cap/_batch_reports/`,不再与动作目录混放;
+  · 启动时打印"引用库 / 解释器 / 设备 / 交付根"四行,便于核对。
+- `ground_character_on_floor.py`、`fuse_camera_views.py`:改为经 config 导入引用库。
+- `motion2mixamo_command.py`:没提供焦距时**明确告警**(世界尺度按 43mm 估算),不再静默。
+- 文档:`Motion2MixamoRig/README.md` 增加"配置"一节(解析顺序 + 配置项表)。
+
+验证:`bash tests/smoke.sh` 42 项全通过;五个工具 `py_compile` 通过;
+配置在三种启动目录下解析正确(工程根 / 系统临时目录 / 引用库子目录);
+批量冒烟(8 秒片)按默认配置跑通并判 PASS。
+
 ## 1.0.5.3
 
 审核后 P1 两项。
