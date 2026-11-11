@@ -3,6 +3,8 @@
 本目录是 **AIGenAnimPrj 里 m2mr 产线的全部落点**。上层引用库
 `H:\aiworks\motionPrj\Motion2MixamoRig` 保持**只读**,任何改进都在这里做。
 
+> 命令与参数的完整清单见 [`docs/动补操作手册.md`](../docs/动补操作手册.md)(配置项、命令配方、参数总表、排错)。
+
 ## 目录
 
 ```
@@ -12,6 +14,9 @@ Motion2MixamoRig/
 │   ├── ground_character_on_floor.py  按真实最低顶点把角色压到 y=0
 │   ├── run_batch_captures.py         批量跑素材 + 质检判定(PASS/WARN/FAIL)
 │   ├── fuse_camera_views.py          双机位轨迹融合 + 分歧报告
+│   ├── camera_distance.py            距离 ↔ 焦距换算(量像素身高)
+│   ├── plot_trajectory_compare.py    两次 run 的位移/高度对比图
+│   ├── make_comparison_video.py      两次 run 的角色预览并排成对比 mp4
 │   └── blender/
 │       ├── export_character_fbx.py        glb -> 二进制 FBX(Unity 原生)
 │       └── render_floor_contact_stills.py 加 z=0 地板渲染若干帧,看脚是否贴地
@@ -44,6 +49,45 @@ GVHMR 按 43mm 等效镜头估算,手机主摄(约 26mm)的深度会被高估约
 | `diagnostics.json` / `REPORT.md` | 质量报告 |
 
 命名:`cap_<动作>_v<版本>`,例如 `outputs/video_cap/cap_punch_v2/`。
+
+## 配置(先读这一节)
+
+代码里**没有写死机器路径**。所有路径按下面顺序解析,先命中先用:
+
+1. **环境变量**(临时覆盖,适合一次性的不同机器)
+2. **`Motion2MixamoRig/config.env`**(本机配置,不入库;模板是 `config.example.env`)
+3. **从当前工作目录逐级向上找**,认「含 `motion2mixamorig/` 的目录」为引用库根
+4. 都找不到就**明确报错并打印配置方法**,不回落假路径
+
+| 配置项 | 含义 | 缺省 |
+|---|---|---|
+| `MOTION2MIXAMO_HOME` | 引用库根目录(只读) | 由 1/3 步解析 |
+| `MOTION2MIXAMO_PYTHON` | 跑引用库的解释器 | `<HOME>/.venv/Scripts/python.exe` |
+| `MOTION2MIXAMO_ASSETS_VIDEO` | 素材目录 | `assets/video`(相对 HOME) |
+| `MOTION2MIXAMO_DEFAULT_RIG` | 默认角色 FBX | `assets/mixamo/X_Bot.fbx` |
+| `MOTION2MIXAMO_OUTPUT_ROOT` | 交付根 | 主工程 `outputs/video_cap` |
+| `MOTION2MIXAMO_FOCAL_PIXELS` | 相机焦距(像素) | 空 = 上游按 43mm 启发式 |
+| `MOTION2MIXAMO_DISTANCE_METRES` | 人到相机的距离(米) | 空;给了就反推焦距 |
+| `MOTION2MIXAMO_PERSON_HEIGHT_METRES` | 画面里人的真实身高(米) | `1.70` |
+| `BLENDER_EXECUTABLE` | Blender | `blender`(走 PATH) |
+
+自检:`python tools/motion2mixamo_config.py` 会打印当前解析结果。
+
+## 尺度怎么给(焦距 or 距离)
+
+GVHMR 的**绝对深度由焦距决定**;不给焦距时它按 ~43mm 等效镜头估,
+手机主摄(约 26mm)的深度会被高估约 65% —— 表现为"角色位移比实际大"。
+朝向、姿势形状不受影响,所以我们量的 60.1cm 骨盆→头距离始终一致。
+
+三种给法,优先级从高到低:
+
+| 给什么 | 怎么做 | 说明 |
+|---|---|---|
+| **焦距** | `--focal-pixels 1387` | 最直接;手机主摄 26mm @1920 宽 ≈ 1387 |
+| **距离** | `--distance 3.4 --person-height 1.75` | 本入口用 YOLO 量像素身高,按 `焦距 = 像素身高 × 距离 ÷ 真人身高` 反推 |
+| 都不给 | — | 上游启发式,只适合"只要动作、不管位移"的场合 |
+
+`--distance` 只是入口层的便利参数,底层仍然注入 `f_px`(引用库一行没改)。
 
 ## 环境变量
 

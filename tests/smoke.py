@@ -15,6 +15,7 @@
     4. 动作契约：action_meta 写出的字段齐全、版本号来自 VERSION
     5. 动作索引：能扫到刚写的 action.json，并报重名
     6. 工具可导入：各工具模块 import 不报错
+    7. 动补工具：落地偏移算法、GLB 字节写回、机位融合拟合、动补契约
 """
 
 from __future__ import annotations
@@ -129,6 +130,54 @@ def test_loop_cut() -> None:
           loop_verdict(0.5, 0.01, "periodic", 2.0))
 
 
+def test_period_ceiling() -> None:
+    print("\n2d) 周期上限按片段长度放宽")
+    from cycle_search import CycleOptions, choose_cycle, period_ceiling
+
+    short = np.zeros((60, 4, 12), dtype=np.float32)
+    long_clip = np.zeros((160, 4, 12), dtype=np.float32)
+    check("60 帧素材仍是 58（历史行为不变）",
+          period_ceiling(short, CycleOptions()) == 58, str(period_ceiling(short, CycleOptions())))
+    check("160 帧长片段放宽到 144",
+          period_ceiling(long_clip, CycleOptions()) == 144,
+          str(period_ceiling(long_clip, CycleOptions())))
+    check("显式 --max-period 优先",
+          period_ceiling(long_clip, CycleOptions(max_period=40)) == 40)
+
+    # 造一段周期 90 的长动作：老上限 58 找不到，新逻辑应该找到
+    frames = 160
+    t_axis = np.arange(frames)
+    x = np.zeros((frames, 4, 12), dtype=np.float32)
+    for j in range(4):
+        x[:, j, 0] = 0.4 * np.sin(2 * np.pi * t_axis / 90.0 + j * 0.5)
+        x[:, j, 3] = 1.0
+    feet = {"后左": 0, "后右": 1, "前左": 2, "前右": 3}
+    choice = choose_cycle(x, feet, CycleOptions(basis="feet"))
+    check("90 帧周期能被找到", choice.period == 90, "period=%d" % choice.period)
+    old = choose_cycle(x, feet, CycleOptions(basis="feet", max_period=58))
+    check("旧上限 58 确实找不到它", old.period != 90, "period=%d" % old.period)
+
+
+def test_basis_rule() -> None:
+    print("\n2e) 依据规则：四足按脚、两足按姿态")
+    from cycle_search import CycleOptions, choose_cycle
+
+    frames = 80
+    t_axis = np.arange(frames)
+    x = np.zeros((frames, 8, 12), dtype=np.float32)
+    for j in range(8):
+        x[:, j, 0] = 0.3 * np.sin(2 * np.pi * t_axis / 20.0 + j * 0.3)
+        x[:, j, 3] = 1.0
+
+    four = {"后左": 0, "后右": 1, "前左": 2, "前右": 3}
+    two = {"后左": 0, "后右": 1}
+    check("四足走 feet", choose_cycle(x, four, CycleOptions()).basis == "feet",
+          choose_cycle(x, four, CycleOptions()).basis)
+    check("两足走 rot", choose_cycle(x, two, CycleOptions()).basis == "rot",
+          choose_cycle(x, two, CycleOptions()).basis)
+    check("显式 basis 优先", choose_cycle(x, two, CycleOptions(basis="feet")).basis == "feet")
+
+
 def test_module_split() -> None:
     print("\n2c) 拆分后的模块边界")
     import cycle_search
@@ -222,10 +271,158 @@ def test_imports() -> None:
             check("import %s" % mod, False, repr(exc)[:80])
 
 
+def test_motion2mixamo() -> None:
+    """动补工具的三处核心算法：落地偏移、GLB 写回、机位融合。"""
+    print("\n7) 动补工具（Motion2MixamoRig）")
+    tools_dir = os.path.join(ROOT, "Motion2MixamoRig", "tools")
+    if not os.path.isdir(tools_dir):
+        check("动补模块存在", False, tools_dir)
+        return
+    sys.path.insert(0, tools_dir)
+
+    # 动补工具要在 m2mr 的 venv 里跑(要 numpy + 引用库)。换了解释器就跳过,
+    # 不把"环境不对"记成 FAIL —— 那会让 UniMate 侧的冒烟永远红。
+    try:
+        import ground_character_on_floor  # noqa: F401
+    except (Exception, SystemExit) as exc:
+        print("  [skip] 当前解释器拿不到动补依赖（%s），本节跳过；"
+              "要用 m2mr 的 python 跑：Motion2MixamoRig\\.venv\\Scripts\\python.exe tests/smoke.py"
+              % repr(exc)[:60])
+        return
+
+    # --- 7.1 落地偏移：着地帧压到 0，且任何帧都不穿地 ---
+    try:
+        import ground_character_on_floor as ground
+    except Exception as exc:                # 导入失败要看到具体异常
+        check("import ground_character_on_floor", False, repr(exc)[:80])
+    else:
+        check("import ground_character_on_floor", True)
+        lowest = np.array([0.05, -0.06, 0.02, 0.31, 0.0, -0.02])
+        contact = np.array([[1.0, 1.0, 1.0, 1.0]] * 3 + [[0.0, 0.0, 0.0, 0.0]] * 3)
+        offsets = ground.compute_vertical_offsets(lowest, contact, False)
+        after = lowest + offsets
+        check("着地帧最低点归零",
+              abs(after[0]) < 1e-9 and abs(after[1]) < 1e-9 and abs(after[2]) < 1e-9,
+              "after=%s" % np.round(after, 4).tolist())
+        check("任何帧都不穿地", float(after.min()) > -1e-9, "min=%.4f" % float(after.min()))
+
+        always = ground.compute_vertical_offsets(lowest, contact, True)
+        check("--always-ground 每帧贴地",
+              float(np.abs(lowest + always).max()) < 1e-9,
+              "max=%.4f" % float(np.abs(lowest + always).max()))
+
+    # --- 7.2 GLB 读写往返 + Hips 通道定位（字节级数学）---
+    try:
+        import ground_character_on_floor as ground
+        frame_count = 4
+        times = np.arange(frame_count, dtype=np.float32) * 0.0333
+        hips = np.array([[0.0, 1.0, 0.0]] * frame_count, dtype=np.float32)
+        binary = times.tobytes() + hips.tobytes()
+        gltf = {
+            "asset": {"version": "2.0"},
+            "nodes": [{"name": "mixamorig:Hips"}],
+            "scenes": [{"nodes": [0]}],
+            "scene": 0,
+            "accessors": [
+                {"bufferView": 0, "componentType": 5126, "count": frame_count, "type": "SCALAR"},
+                {"bufferView": 1, "componentType": 5126, "count": frame_count, "type": "VEC3"},
+            ],
+            "bufferViews": [
+                {"buffer": 0, "byteOffset": 0, "byteLength": frame_count * 4},
+                {"buffer": 0, "byteOffset": frame_count * 4, "byteLength": frame_count * 12},
+            ],
+            "buffers": [{"byteLength": len(binary)}],
+            "animations": [{
+                "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}],
+                "samplers": [{"input": 0, "output": 1}],
+            }],
+        }
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="smoke_glb_") as tmp:
+            glb_path = os.path.join(tmp, "clip.glb")
+            ground.write_glb(glb_path, gltf, binary)
+            parsed_json, parsed_bin = ground.read_glb(glb_path)
+            check("GLB 读回 JSON 一致", parsed_json["nodes"][0]["name"] == "mixamorig:Hips")
+            check("GLB 读回 BIN 长度一致", len(parsed_bin) == len(binary),
+                  "%d vs %d" % (len(parsed_bin), len(binary)))
+            hips_index = ground.find_hips_node_index(parsed_json)
+            accessor = ground.find_hips_translation_accessor(parsed_json, hips_index)
+            start, count, components, stride = ground.resolve_accessor_layout(parsed_json, accessor)
+            check("Hips 通道定位正确",
+                  (start, count, components, stride) == (frame_count * 4, frame_count, 3, 12),
+                  "start=%d count=%d comps=%d stride=%d" % (start, count, components, stride))
+
+            # 模拟工具里"原地加偏移再写回"的动作
+            raw = np.frombuffer(bytes(parsed_bin[start:start + stride * count]),
+                                dtype=np.float32).reshape(count, 3).copy()
+            raw[:, 1] += 0.25
+            parsed_bin[start:start + stride * count] = raw.astype(np.float32).tobytes()
+            ground.write_glb(glb_path, parsed_json, bytes(parsed_bin))
+            _, rewritten = ground.read_glb(glb_path)
+            values = np.frombuffer(bytes(rewritten[start:start + stride * count]),
+                                   dtype=np.float32).reshape(count, 3)
+            check("写回偏移量正确", bool(np.allclose(values[:, 1], 1.25, atol=1e-6)),
+                  str(np.round(values[:, 1], 3).tolist()))
+    except Exception as exc:
+        check("GLB 写回测试", False, repr(exc)[:100])
+
+    # --- 7.3 机位融合：旋转与缩放能被拟合回来 ---
+    try:
+        import fuse_camera_views as fuse
+    except Exception as exc:
+        check("import fuse_camera_views", False, repr(exc)[:80])
+    else:
+        check("import fuse_camera_views", True)
+        rng = np.random.default_rng(7)
+        source = rng.normal(size=(30, 24, 3))
+        angle = np.deg2rad(25.0)
+        rotation = np.array([[np.cos(angle), 0, np.sin(angle)],
+                             [0, 1, 0],
+                             [-np.sin(angle), 0, np.cos(angle)]])
+        target = 1.08 * (source @ rotation.T)
+        fitted_rotation, fitted_scale = fuse.fit_rotation_and_scale(source, target, allow_scale=True)
+        residual = np.abs(source @ fitted_rotation.T * fitted_scale - target).max()
+        check("融合复原旋转+缩放", residual < 1e-6 and abs(fitted_scale - 1.08) < 1e-6,
+              "scale=%.4f（真值 1.08）residual=%.2e" % (fitted_scale, residual))
+        same_rotation, same_scale = fuse.fit_rotation_and_scale(target, target, allow_scale=False)
+        check("恒等输入给出单位变换",
+              bool(np.allclose(same_rotation, np.eye(3), atol=1e-9)) and abs(same_scale - 1.0) < 1e-12)
+
+    # --- 7.4 距离 → 焦距换算（纯数学，不需要视频）---
+    try:
+        import camera_distance
+    except Exception as exc:
+        check("import camera_distance", False, repr(exc)[:80])
+    else:
+        check("import camera_distance", True)
+        focal = camera_distance.focal_pixels_from_distance(747.7, 3.4, 1.75)
+        check("距离换算焦距", abs(focal - 1452.6) < 1.0, "%.1f px" % focal)
+        doubled = camera_distance.focal_pixels_from_distance(747.7, 6.8, 1.75)
+        check("距离翻倍焦距翻倍", abs(doubled - 2 * focal) < 1e-9)
+        try:
+            camera_distance.focal_pixels_from_distance(0.0, 3.4, 1.75)
+            check("非法参数被拒", False, "没有抛 ValueError")
+        except ValueError:
+            check("非法参数被拒", True)
+
+    # --- 7.5 动补契约：capture 能过校验，乱填的 source 会被拒 ---
+    try:
+        from action_schema import SOURCES, validate
+    except Exception as exc:
+        check("import action_schema", False, repr(exc)[:80])
+    else:
+        good = {"kind": "action", "version": "test", "name": "cap_x",
+                "source": "capture", "in_place": False, "files": ["a.glb"]}
+        check("capture 是合法来源", "capture" in SOURCES and not validate(good), str(validate(good)))
+        bad = dict(good, source="teleport")
+        check("未知来源被拒", bool(validate(bad)), str(validate(bad))[:60])
+
+
 def main() -> int:
     print("冒烟测试（工程根 %s）" % ROOT)
-    for fn in (test_limbs, test_cycle_feet, test_loop_cut, test_module_split,
-               test_action_meta, test_schema, test_action_index, test_imports):
+    for fn in (test_limbs, test_cycle_feet, test_loop_cut, test_period_ceiling,
+               test_basis_rule, test_module_split, test_action_meta, test_schema, test_action_index,
+               test_imports, test_motion2mixamo):
         try:
             fn()
         except Exception as exc:            # 单个用例炸了不拦其它用例

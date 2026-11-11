@@ -162,6 +162,28 @@ def default_focal_pixels() -> float | None:
         return None
 
 
+def distance_metres() -> float | None:
+    """人到相机的距离(米)。设了就由它反推焦距,优先于启发式。"""
+    text = os.environ.get("MOTION2MIXAMO_DISTANCE_METRES", "").strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        LOGGER.warning("MOTION2MIXAMO_DISTANCE_METRES 不是数字(%s),忽略", text)
+        return None
+
+
+def person_height_metres() -> float:
+    """画面里那个人的真实身高(米),默认 1.70。用于把距离换算成焦距。"""
+    text = os.environ.get("MOTION2MIXAMO_PERSON_HEIGHT_METRES", "").strip() or "1.70"
+    try:
+        return float(text)
+    except ValueError:
+        LOGGER.warning("MOTION2MIXAMO_PERSON_HEIGHT_METRES 不是数字(%s),用 1.70", text)
+        return 1.70
+
+
 def describe() -> dict[str, str]:
     """把当前解析结果整理成一行键值,便于启动时自检。"""
     return {
@@ -172,4 +194,19 @@ def describe() -> dict[str, str]:
         "output_root": str(video_cap_output_root()),
         "blender": blender_executable(),
         "focal_pixels": str(default_focal_pixels()),
+        "distance_metres": str(distance_metres()),
+        "person_height_metres": str(person_height_metres()),
     }
+
+
+def main() -> int:
+    """命令行自检:打印当前解析结果,便于排查"为什么找错目录"。"""
+    import json
+
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
+    print(json.dumps(describe(), ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

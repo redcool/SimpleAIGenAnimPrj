@@ -39,8 +39,9 @@ FLOAT32_COMPONENT_TYPE = 5126
 VECTOR_THREE_COMPONENTS = 3
 
 
-def read_glb(path: Path) -> tuple[dict, bytearray]:
+def read_glb(path: Path | str) -> tuple[dict, bytearray]:
     """拆出 JSON 与 BIN 两个 chunk;只支持标准 GLB 2.0。"""
+    path = Path(path)
     data = path.read_bytes()
     magic, version, _length = struct.unpack_from("<III", data, 0)
     if magic != GLB_MAGIC:
@@ -60,8 +61,9 @@ def read_glb(path: Path) -> tuple[dict, bytearray]:
     return gltf_json, binary
 
 
-def write_glb(path: Path, gltf_json: dict, binary: bytes) -> None:
-    """按 GLB 2.0 重新打包。"""
+def write_glb(path: Path | str, gltf_json: dict, binary: bytes) -> None:
+    """按 GLB 2.0 重新打包;接受 str 或 Path,内部统一成 Path。"""
+    path = Path(path)
     json_bytes = json.dumps(gltf_json, separators=(",", ":")).encode("utf-8")
     json_bytes += b" " * ((4 - len(json_bytes) % 4) % 4)
     binary_bytes = bytes(binary) + b"\x00" * ((4 - len(binary) % 4) % 4)
@@ -105,12 +107,32 @@ def resolve_accessor_layout(gltf_json: dict, accessor_index: int) -> tuple[int, 
     return start_offset, int(accessor["count"]), component_count, int(stride)
 
 
-def measure_lowest_vertex_per_frame(clip: SkinnedClip) -> np.ndarray:
-    """逐帧取所有蒙皮顶点的最低 y(米)。"""
-    lowest = np.empty(clip.n_frames, dtype=np.float64)
-    for frame_index in range(clip.n_frames):
-        posed_parts = clip.skinned_positions(frame_index)
-        lowest[frame_index] = min(float(part[:, 1].min()) for part in posed_parts)
+def measure_lowest_vertex_per_frame(clip: SkinnedClip, chunk_frames: int = 32) -> np.ndarray:
+    """逐帧取所有蒙皮顶点的最低 y(米)。
+
+    只算 y 这一行:按帧块取节点世界矩阵,再用每顶点最多四个影响把 y 线性累加,
+    不构造完整的 (顶点, 4, 4) 变形矩阵。数学上与逐帧完整蒙皮等价(已用第 7 节冒烟
+    与 tests/slow.py 对照),2259 帧的片子从约 40 秒降到 1~2 秒。
+    """
+    frame_count = clip.n_frames
+    lowest = np.full(frame_count, np.inf, dtype=np.float64)
+    for start in range(0, frame_count, chunk_frames):
+        stop = min(start + chunk_frames, frame_count)
+        # 节点层级很少(约 60 个),逐帧求世界矩阵的代价远小于逐顶点蒙皮
+        world_stack = np.stack([clip.node_world(frame) for frame in range(start, stop)])
+        for primitive in clip.primitives:
+            joint_nodes, inverse_bind = clip.skins[primitive.skin]
+            palette = world_stack[:, joint_nodes, :, :] @ inverse_bind          # (F, J, 4, 4)
+            heights = np.zeros((stop - start, len(primitive.positions)), dtype=np.float64)
+            for influence in range(primitive.joints.shape[1]):
+                weights = primitive.weights[:, influence]
+                if not np.any(weights):
+                    continue
+                rows = palette[:, primitive.joints[:, influence], 1, :]          # (F, V, 4)
+                # y = 旋转行 · 顶点 + 平移;逐顶点点积,不能用矩阵乘(会变成 (V,V))
+                contribution = np.einsum("fvj,vj->fv", rows[..., :3], primitive.positions) + rows[..., 3]
+                heights += weights[None, :] * contribution
+            np.minimum(lowest[start:stop], heights.min(axis=1), out=lowest[start:stop])
     return lowest
 
 

@@ -265,7 +265,9 @@ def main() -> int:
         records.append(record)
         LOGGER.info("    %s %s", record.verdict, record.note)
 
-    markdown_path, csv_path = write_reports(records, Path(arguments.report) if arguments.report else output_root)
+    # 报告单独放 _batch_reports,避免和逐个动作的交付目录混在一起
+    report_directory = Path(arguments.report) if arguments.report else (output_root / "_batch_reports")
+    markdown_path, csv_path = write_reports(records, report_directory)
     LOGGER.info("报告 %s", markdown_path)
     LOGGER.info("CSV  %s", csv_path)
     return 0 if all(record.verdict != "FAIL" for record in records) else 2

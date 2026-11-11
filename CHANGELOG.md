@@ -3,6 +3,89 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.5.9
+
+动补产线出**操作手册**,并把 punch 的 v3 升为正式条目。
+
+- 新增 `docs/动补操作手册.md`:配置项全表、**尺度怎么给**(焦距/距离/启发式 + 针孔换算)、
+  9 个可直接抄的命令配方、每个工具的参数总表、交付契约字段、排错表、已知边界。
+  `Motion2MixamoRig/README.md` 顶部加了指向它的链接。
+- `outputs/video_cap/cap_punch_v3/`:补齐 `action.json`(`name=cap_punch`, 当前版本)、
+  `mixamo_character_grounded.glb/.fbx`(落地 937 帧陷地 → 0)。
+  原 v2 改为 `name=cap_punch_v2` 作对照;索引现在有两条 capture:
+  `cap_punch`(v3,脚锁 13.4cm)与 `cap_punch_v2`(脚锁 16.8cm)。
+
+验证:`action_index.py` 的 `capture=2`;`tests/smoke.py` 73 通过 / 0 失败。
+
+## 1.0.5.8
+
+补两个对照用的辅助工具,并首次出 **v2/v3 并排对比视频**。
+
+- `Motion2MixamoRig/tools/plot_trajectory_compare.py`:读两次 run 的 `skeleton_motion.npz`,
+  画俯视轨迹(世界 XZ)与髋部高度随时间,标注各自位移;标签用英文(matplotlib 默认字体无中文字形)。
+- `Motion2MixamoRig/tools/make_comparison_video.py`:把两次 run 的 `mixamo_character.mp4`
+  并排合成一个 mp4,标签用 PIL 预生成 PNG 再 overlay —— 避开 Windows 下 ffmpeg drawtext
+  字体路径的冒号转义坑。
+- 实测(punch.mp4,75.3s):启发式焦距 travel **0.62m** / 脚锁 2.94–16.77cm / 穿模 77 帧;
+  按距离 3.4m 反推焦距(~1481px)travel **0.50m** / 脚锁 2.38–13.39cm / 穿模 88 帧、最深 5.39cm。
+  产物:`outputs/video_cap/cap_punch_v3/{compare_v2_v3.mp4,trajectory_compare.png}`。
+- AGENTS §10 里 m2mr 侧冒烟条数 61 → 70。
+
+## 1.0.5.7
+
+动补尺度:**可以让用户直接给"人到相机的距离"**,不必知道焦距。
+
+- 背景:GVHMR 的绝对深度由**焦距**决定;没给焦距时按 ~43mm 等效估,手机主摄
+  (约 26mm)的深度会高估约 65%(实测同一段片子:给 f_px=1400 世界位移 32.6cm,
+  启发式 45.8cm;而骨盆→头的 60.1cm 不变 —— 焦距只影响位移/深度,不影响姿势)。
+- 新增 `Motion2MixamoRig/tools/camera_distance.py`:用 YOLO 量画面里人的像素身高 s,
+  按 `f_px = s × 距离 ÷ 真人身高` 反推焦距。
+- 入口 `motion2mixamo_command.py` 新增参数(委派前摘掉,不污染 m2mr CLI):
+  `--distance <米>`、`--person-height <米,默认 1.70>`、`--focal-pixels <px>`。
+  优先级:**焦距 > 距离 > 启发式**;两者都没有会明确告警。
+- 配置键新增 `MOTION2MIXAMO_DISTANCE_METRES`、`MOTION2MIXAMO_PERSON_HEIGHT_METRES`。
+- 冒烟第 7 节新增 4 项:换算数值、线性关系、非法参数报错;总数 61 → **70**。
+- 文档:`Motion2MixamoRig/README.md` 增"尺度怎么给(焦距 or 距离)"一节。
+
+实测(punch 8 秒段):像素身高 747.7px(5 帧中位数)→ 距离 3.40m / 身高 1.75m
+→ 焦距 **1453 px** → 注入后 foot lock 1.4/7.3cm,跑通。
+
+## 1.0.5.6
+
+两件事:§10 补一条协作约定;动补落地测量**向量化**,并加一个可选的慢测入口。
+
+- `AGENTS.md` §10 补**提交信息格式**:`type: 一句话说明，vX.Y.Z.W`(feat/fix/refactor/test/docs/chore),
+  一次提交只做一件事。(git status 先看、只 add 自己文件、不用 `-A`、契约出处 `core/action_schema.py`
+  这几条上一版已存在,本次未重复添加。)
+- `Motion2MixamoRig/tools/ground_character_on_floor.py`:`measure_lowest_vertex_per_frame`
+  改为**按帧块向量化**(默认 32 帧/块,只算插值后的 y 一行,不构造完整 (顶点,4,4) 矩阵)。
+  实测 cap_punch_v2(2259 帧):**11.9s → 4.3s(2.7 倍)**,与参考实现逐帧偏差 **0.00000 mm**。
+  中途踩坑:第一版用 `rows[..., :3] @ positions.T` 做成了 (V,V) 矩阵乘,已改为
+  `np.einsum("fvj,vj->fv", ...)` 并加注释。
+- 新增 `tests/slow.py`(手动跑,不进 smoke):在真实 GLB 上对照向量化实现与逐帧完整蒙皮,
+  断言逐帧偏差 < 1 微米、无穿地帧,并打印两个实现的耗时。缺 GLB 或换了解释器则整体跳过。
+
+验证:`python tests/slow.py` → 3 通过 / 0 失败(偏差 0.00000 mm,2.7 倍);
+`tests/smoke.py`(m2mr)61 通过、`bash tests/smoke.sh`(UniMate)48 通过,均 0 失败。
+
+## 1.0.5.5
+
+动补产线补**自动化测试**(审核遗留 P1-7),并修掉测试暴露的一个真 bug。
+
+- `tests/smoke.py` 新增第 7 节"动补工具",13 项断言:
+  · 落地偏移:着地帧最低点归零、任何帧不穿地、`--always-ground` 每帧贴地;
+  · GLB 读写往返 + Hips translation 通道定位(字节偏移/步长/分量数)+ 写回偏移量;
+  · 机位融合:25° 旋转 + 1.08 缩放的合成点云能被拟合回来(残差 2.7e-15),恒等输入给单位变换;
+  · 动补契约:`capture` 合法、未知来源被拒。
+- 修复真 bug:`ground_character_on_floor.py` 的 `read_glb` / `write_glb` 原来只接受 Path,
+  传字符串会在 `path.write_bytes` 处 AttributeError。现在两个入口都接受 `str | Path`。
+- 冒烟增加**环境跳过**:动补工具需要 m2mr 的解释器(numpy + 引用库),在 UniMate 环境里
+  第 7 节打印 `[skip]` 与正确跑法,不记 FAIL —— 否则 UniMate 侧冒烟会长期红。
+- AGENTS §10 补两行:两套解释器怎么各跑一遍冒烟。
+
+验证:`Motion2MixamoRig\.venv\Scripts\python.exe tests\smoke.py` → **61 项通过 / 0 失败**;
+`bash tests/smoke.sh` → **48 项通过 / 0 失败**(第 7 节跳过)。
+
 ## 1.0.5.4
 
 动补产线**去硬编码**:路径改配置驱动(审核发现 3 处写死 `H:\aiworks\motionPrj\Motion2MixamoRig`)。

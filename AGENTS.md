@@ -408,7 +408,9 @@ python core/action_index.py
 
 ## 10. 改动本工程时
 
-- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（48 项断言，约 7 秒）。
+- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（48 项断言，约 7 秒；UniMate 解释器）。
+  动了 `Motion2MixamoRig/` 再补跑一遍 m2mr 侧：
+  `Motion2MixamoRig\.venv\Scripts\python.exe tests/smoke.py`（70 项，含第 7 节动补断言）。
   覆盖：关节识别、循环检测（合成周期数据）、静止保护、切循环语义、模块边界、
   动作契约字段、动作索引重名、工具可导入。
 - 再跑 `bash -n`（脚本）和 `python -m py_compile`（工具）。
@@ -426,4 +428,6 @@ python core/action_index.py
   看到不属于自己的改动就停下来问。
 - 动作契约（`source` 允许值、必填字段、`loop_mode`）唯一出处是
   `core/action_schema.py`；加来源/加字段只改那里，工具与文档跟着走。
+- 提交信息格式：`type: 一句话说明，vX.Y.Z.W`（type 用 feat/fix/refactor/test/docs/chore），
+  版本号与 `VERSION` 一致；一次提交只做一件事。
 - 版本号：字段改动 → w+1；新增能力 → z+1 并在 `CHANGELOG.md` 写清楚。
