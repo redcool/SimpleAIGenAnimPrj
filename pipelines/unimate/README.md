@@ -26,7 +26,7 @@
 |---|---|
 | `unimate_api.py` | **唯一** import UniMate 内部的文件 |
 | `make_loop.py` | **编排层**：解析参数、逐条跑流程、写 `loop_report.json`（228 行） |
-| `cycle_search.py` | 找周期：按四肢轨迹 / 按全身旋转 / 静止保护 / 候选打分（236 行） |
+| `cycle_search.py` | 找周期：四足按四肢轨迹、两足按全身旋转；含静止保护、行程约束、候选打分（260 行） |
 | `loop_cut.py` | 切循环：裁剪、接缝淡化、接缝指标、一句判定（126 行） |
 | `loop_close.py` | 让模型把末帧收回首帧（待机这类没有周期时用） |
 | `flatten_root.py` | 根位移拉平，变原地动作 |

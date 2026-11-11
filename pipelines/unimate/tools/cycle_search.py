@@ -144,7 +144,9 @@ def find_cycle_feet(x: np.ndarray, feet: dict, lo: int, hi: int,
     cands.sort(key=lambda c: c[0])
     near = [c for c in cands if c[0] <= cands[0][0] * 1.15 + 1e-9]
     best = min(near, key=lambda c: (c[2], c[1]))
-    return best[1], best[2], best[3], best[4], [(c[1], c[2], round(c[0], 4)) for c in cands[:8]]
+    # 候选短名单要够长：上限只有 8 个时，"脚最像"的几条会把"姿态最像"的起点挤掉，
+    # 人形上表现为脚接缝 0.8、旋转接缝 1.4（上身拧着）。
+    return best[1], best[2], best[3], best[4], [(c[1], c[2], round(c[0], 4)) for c in cands[:32]]
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +165,9 @@ class CycleOptions:
     min_foot_travel: float = 0.55
     foot_tolerance: float = 0.12
     min_foot_motion: float = 0.002
+    # 姿态项权重：0 = 只看脚（四足默认）。给正数会把"上身更一致"的起点往前排，
+    # 实测人形需要它（但人形现在走 rot 依据了），四足加了反而挑出脚更差的起点。
+    pose_weight: float = 0.0
     period_tolerance: float = 1.5
     anchor: bool = False
     max_start: int | None = None
@@ -200,7 +205,9 @@ def choose_cycle(x: np.ndarray, feet: dict, opts: CycleOptions) -> CycleChoice:
     ceiling = period_ceiling(x, opts)
     basis = opts.basis
     if basis == "auto":
-        basis = "feet" if len(feet) >= 2 else "rot"
+        # 四条腿才按脚找：两个接触点的时候"脚对上"太容易碰巧，
+        # 上身可能拧着（实测人形旋转接缝 0.75 -> 1.4）。
+        basis = "feet" if len(feet) >= 4 else "rot"
 
     if opts.forced_period:
         return CycleChoice(start=0, period=int(opts.forced_period), cyclic=True, basis=basis)
@@ -221,6 +228,10 @@ def choose_cycle(x: np.ndarray, feet: dict, opts: CycleOptions) -> CycleChoice:
 
         # 周期误差小不等于接缝好看：先筛掉超容差的候选，
         # 再按"末帧到首帧那一步有多接近正常步长"挑一条。
+        # 同时加一个**姿态项**：只看脚会挑出"脚对上了、上身却拧着"的起点，
+        # 人形尤其明显（两足，脚本来就容易撞上）。旋转差按"正常一步"归一。
+        rot = orthonormalize(x[:, :, ROT])
+        rot_step = median_step(x) or 1.0
         scored = []
         pos = x[:, list(feet.values()), POS].astype(np.float64)
         for s, Lc, cost in cands:
@@ -228,7 +239,9 @@ def choose_cycle(x: np.ndarray, feet: dict, opts: CycleOptions) -> CycleChoice:
             if end >= T or s >= T or cost > opts.foot_tolerance * rng:
                 continue
             seam = float(np.linalg.norm(pos[end] - pos[s], axis=-1).mean()) / med0
-            scored.append((0.6 * abs(seam - 1.0) + cost / med0, seam, s, Lc, cost))
+            rot_gap = rot_dist(rot[s], rot[s + Lc]) / rot_step
+            scored.append((0.6 * abs(seam - 1.0) + cost / med0 + opts.pose_weight * rot_gap,
+                           seam, s, Lc, cost))
 
         seam_ratio = None
         if scored:
