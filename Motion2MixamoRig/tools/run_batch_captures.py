@@ -229,6 +229,12 @@ def main() -> int:
     parser.add_argument("--focal-pixels", type=float,
                         default=config.default_focal_pixels(),
                         help="相机焦距(像素);默认取配置里的 MOTION2MIXAMO_FOCAL_PIXELS")
+    parser.add_argument("--distance", type=float,
+                        default=config.distance_metres(),
+                        help="人到相机的距离(米);给了就让每条片子自己按像素身高反推焦距")
+    parser.add_argument("--person-height", type=float,
+                        default=config.person_height_metres(),
+                        help="画面里人的真实身高(米),默认 1.70")
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--min-seconds", type=float, default=2.0)
     parser.add_argument("--limit", type=int, default=None)
@@ -238,6 +244,8 @@ def main() -> int:
     LOGGER.info("引用库 %s", config.motion2mixamo_home())
     LOGGER.info("解释器 %s", reference_python)
     LOGGER.info("设备 %s | 交付根 %s", arguments.device, arguments.out)
+    if arguments.focal_pixels and arguments.distance:
+        LOGGER.warning("焦距与距离同时给了:子进程里焦距优先,距离不影响结果")
 
     video_directory = Path(arguments.videos)
     if not video_directory.is_dir():
@@ -252,6 +260,12 @@ def main() -> int:
 
     rig_path = Path(arguments.rig)
     environment = build_environment()
+    # 距离交给子进程自己按每条的像素身高反推焦距:不同素材的人站得远近不同
+    if arguments.distance:
+        environment["MOTION2MIXAMO_DISTANCE_METRES"] = str(arguments.distance)
+        environment["MOTION2MIXAMO_PERSON_HEIGHT_METRES"] = str(arguments.person_height)
+        LOGGER.info("尺度 距离 %.2fm / 身高 %.2fm(按每条片子反推焦距)",
+                    arguments.distance, arguments.person_height)
     output_root = Path(arguments.out)
     records: list[CaptureRecord] = []
     for index, clip in enumerate(clips, start=1):
