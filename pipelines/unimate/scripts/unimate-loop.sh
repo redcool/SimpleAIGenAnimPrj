@@ -94,6 +94,15 @@ if [ "$BUNDLE" = 1 ]; then
   else
     run "$PY" "$TOOLS/bundle_unity.py" --samples "$SAMPLES" \
         --animated "$WORK/animated_inplace" --rig "$RIG" --name "$NAME" --out "$WORK/unity"
+    # 打包完自检：角色 FBX 是 Unity 里建 Avatar 的必需品，缺了要当场说出来，
+    # 不能等到用户打开目录才发现（曾经因为输出被管道截断，留下过没有角色的包）。
+    if [ "$DRY" = 0 ] && [ -d "$WORK/unity" ] && ! ls "$WORK/unity"/*_character.fbx >/dev/null 2>&1; then
+      echo >&2
+      echo "警告：$WORK/unity 里没有角色 FBX（*_character.fbx）。" >&2
+      echo "      打包这一步可能没跑完。可以单独重跑：" >&2
+      echo "      $PY $TOOLS/bundle_unity.py --samples \"$SAMPLES\" --animated \"$WORK/animated_inplace\" \\" >&2
+      echo "          --rig \"$RIG\" --name \"$NAME\" --out \"$WORK/unity\"" >&2
+    fi
   fi
 else
   echo "  跳过（--no-bundle）"

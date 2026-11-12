@@ -3,6 +3,36 @@
 版本号规则（见 Agent工作纪律.md 第 6 条）：
 x 世代版本（人手）、y 大版本（人手）、z 大功能（agent 可动）、w 小改动（agent 可动）。
 
+## 1.0.5.10
+
+动补产线**不再依赖 PATH 里的 ffmpeg/ffprobe**。
+
+- `motion2mixamo_config.py`:新增 `ffmpeg_executable()` / `ffprobe_executable()`,
+  解析顺序 环境变量(`MOTION2MIXAMO_FFMPEG` / `_FFPROBE`) > PATH > 明确报错;
+  自检输出带上两项(缺了也不会让 describe() 抛错)。
+- `run_batch_captures.py`:读时长改用配置解析的 ffprobe;ffmpeg 缺失只告警并跳过时长,不中断批量。
+- `make_comparison_video.py`:合成视频改用配置解析的 ffmpeg;缺失时报错退出(返回 3)。
+- `config.example.env` 与 `docs/动补操作手册.md` 补两个配置项与一条排错。
+- 冒烟第 7 节加 3 项:ffprobe/ffmpeg 解析、坏路径被拒(共 79 项全通过)。
+
+顺带修一个真 bug:smoke 里在函数内 `import os` 导致同名局部化,前面的 `os.path.join`
+抛 UnboundLocalError(测试当场抓到,已删该 import 并留注释)。
+
+验证:配置自检解析到 `H:\Program Files\ffmpeg\bin\{ffmpeg,ffprobe}.EXE`;
+`probe_duration_seconds(punch.mp4) = 75.3s`;对比视频用配置的 ffmpeg 重新合成成功(12.5 MB);
+`tests/smoke.py` 79 通过 / 0 失败。
+
+## 1.0.6.1
+
+查"打包后没有角色 FBX"这件事，结论要更正：**管线本身没问题**。
+
+- 复现：完整日志下重跑一次，`unity/Dog_001_character.fbx` 正常生成（0.14 MB），
+  `角色:` 与 `FBX export starting` 两行都在。之前那个缺角色的目录，
+  是我用 `| tail -2` 过滤输出、进程被打断留下的残次品，不是代码缺陷。
+- 真缺口是"打包完不检查"。`unimate-loop.sh` 第 3 步后加自检：
+  `unity/` 存在但没有 `*_character.fbx` 时打印警告，并给出单独重跑该步的命令。
+  自检已实测：正常跑不触发（0 次），删掉角色后能触发。
+
 ## 1.0.6.0
 
 把"两版交付"从一次性脚本变成产线能力（此前只有我在 tmp 里手写脚本做过，仓库无法复现）。
