@@ -444,7 +444,34 @@ def test_motion2mixamo() -> None:
         except ValueError:
             check("非法参数被拒", True)
 
-    # --- 7.5 动补契约：capture 能过校验，乱填的 source 会被拒 ---
+    # --- 7.5 外部工具：ffmpeg/ffprobe 走配置，坏路径要明确报错 ---
+    try:
+        import motion2mixamo_config as config
+    except Exception as exc:
+        check("import motion2mixamo_config", False, repr(exc)[:80])
+    else:
+        # 不要再 import os:函数里出现 import 会让 os 变成局部名,前面用过的 os 会 UnboundLocalError
+        for name, resolver in (("ffprobe", config.ffprobe_executable),
+                               ("ffmpeg", config.ffmpeg_executable)):
+            try:
+                path = resolver()
+                check("解析 %s" % name, os.path.isfile(path), path)
+            except SystemExit as exc:
+                print("  [skip] 本机没有 %s（%s）" % (name, str(exc).splitlines()[0][:60]))
+        saved = os.environ.get("MOTION2MIXAMO_FFPROBE")
+        os.environ["MOTION2MIXAMO_FFPROBE"] = os.path.join(ROOT, "no_such_ffprobe.exe")
+        try:
+            config.ffprobe_executable()
+            check("坏路径被拒", False, "没有抛 SystemExit")
+        except SystemExit:
+            check("坏路径被拒", True)
+        finally:
+            if saved is None:
+                os.environ.pop("MOTION2MIXAMO_FFPROBE", None)
+            else:
+                os.environ["MOTION2MIXAMO_FFPROBE"] = saved
+
+    # --- 7.6 动补契约：capture 能过校验，乱填的 source 会被拒 ---
     try:
         from action_schema import SOURCES, validate
     except Exception as exc:

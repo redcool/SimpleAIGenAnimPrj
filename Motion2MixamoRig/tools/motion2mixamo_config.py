@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
+import shutil
 import sys
 
 LOGGER = logging.getLogger("motion2mixamo.config")
@@ -119,6 +120,34 @@ def resolve_reference_python() -> str:
     return python
 
 
+def _resolve_media_tool(environment_name: str, executable_name: str, hint: str) -> str:
+    """先看配置,再在 PATH 里找;都没有就明确报错,不静默。"""
+    configured = os.environ.get(environment_name, "").strip()
+    if configured:
+        path = pathlib.Path(configured).expanduser()
+        if not path.is_file():
+            raise SystemExit("%s 指向的文件不存在:%s\n%s" % (environment_name, path, hint))
+        return str(path)
+    found = shutil.which(executable_name)
+    if not found:
+        raise SystemExit("找不到 %s。%s" % (executable_name, hint))
+    return found
+
+
+def ffprobe_executable() -> str:
+    """ffprobe 路径:读视频时长用。"""
+    return _resolve_media_tool(
+        "MOTION2MIXAMO_FFPROBE", "ffprobe",
+        "在 config.env 里设 MOTION2MIXAMO_FFPROBE=<绝对路径>,或把 ffmpeg 的 bin 加进 PATH。")
+
+
+def ffmpeg_executable() -> str:
+    """ffmpeg 路径:合成对比视频用。"""
+    return _resolve_media_tool(
+        "MOTION2MIXAMO_FFMPEG", "ffmpeg",
+        "在 config.env 里设 MOTION2MIXAMO_FFMPEG=<绝对路径>,或把 ffmpeg 的 bin 加进 PATH。")
+
+
 def assets_video() -> pathlib.Path:
     """素材视频目录(只读输入)。"""
     return _configurable_path("MOTION2MIXAMO_ASSETS_VIDEO", "assets/video")
@@ -184,6 +213,14 @@ def person_height_metres() -> float:
         return 1.70
 
 
+def _optional_tool_name(resolver) -> str:
+    """自检用:工具缺失时不要因为 describe() 抛错而看不到其它项。"""
+    try:
+        return resolver()
+    except SystemExit as error:
+        return "缺失(%s)" % str(error).splitlines()[0]
+
+
 def describe() -> dict[str, str]:
     """把当前解析结果整理成一行键值,便于启动时自检。"""
     return {
@@ -194,6 +231,8 @@ def describe() -> dict[str, str]:
         "output_root": str(video_cap_output_root()),
         "blender": blender_executable(),
         "focal_pixels": str(default_focal_pixels()),
+        "ffmpeg": _optional_tool_name(ffmpeg_executable),
+        "ffprobe": _optional_tool_name(ffprobe_executable),
         "distance_metres": str(distance_metres()),
         "person_height_metres": str(person_height_metres()),
     }

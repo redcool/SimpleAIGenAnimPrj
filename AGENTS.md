@@ -419,9 +419,9 @@ python core/action_index.py
 
 ## 10. 改动本工程时
 
-- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（48 项断言，约 7 秒；UniMate 解释器）。
+- 改完先跑 **冒烟测试**：`bash tests/smoke.sh`（59 项断言，约 8 秒；UniMate 解释器）。
   动了 `Motion2MixamoRig/` 再补跑一遍 m2mr 侧：
-  `Motion2MixamoRig\.venv\Scripts\python.exe tests/smoke.py`（70 项，含第 7 节动补断言）。
+  `Motion2MixamoRig\.venv\Scripts\python.exe tests/smoke.py`（79 项，含第 7 节动补断言）。
   覆盖：关节识别、循环检测（合成周期数据）、静止保护、切循环语义、模块边界、
   动作契约字段、动作索引重名、工具可导入。
 - 再跑 `bash -n`（脚本）和 `python -m py_compile`（工具）。

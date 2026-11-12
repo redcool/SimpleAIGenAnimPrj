@@ -6,12 +6,21 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
+
+TOOLS_ROOT = Path(__file__).resolve().parent
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+import motion2mixamo_config as config  # noqa: E402
+
+LOGGER = logging.getLogger("motion2mixamo.comparison_video")
 
 WIDTH, HEIGHT = 1280, 720
 BAND_HEIGHT = 76
@@ -48,6 +57,7 @@ def main() -> int:
     parser.add_argument("--right-label", required=True)
     parser.add_argument("--out", required=True)
     arguments = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
 
     left, right = Path(arguments.left), Path(arguments.right)
     for path in (left, right):
@@ -64,8 +74,13 @@ def main() -> int:
             "[1:v][3:v]overlay=0:0:format=auto[b];"
             "[a][b]hstack=inputs=2[out]"
         )
+        try:
+            ffmpeg = config.ffmpeg_executable()
+        except SystemExit as error:
+            print("找不到 ffmpeg:%s" % str(error).splitlines()[0])
+            return 3
         command = [
-            "ffmpeg", "-y", "-loglevel", "error",
+            ffmpeg, "-y", "-loglevel", "error",
             "-i", str(left), "-i", str(right),
             "-i", str(left_label), "-i", str(right_label),
             "-filter_complex", filter_graph,

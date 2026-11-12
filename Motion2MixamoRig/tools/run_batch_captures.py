@@ -78,10 +78,15 @@ def build_environment() -> dict[str, str]:
 
 
 def probe_duration_seconds(clip: Path) -> float | None:
-    """用 ffprobe 读时长;失败返回 None。"""
+    """用 ffprobe 读时长;ffprobe 不可用或读失败都返回 None(不中断批量)。"""
+    try:
+        ffprobe = config.ffprobe_executable()
+    except SystemExit as error:
+        LOGGER.warning("跳过时长读取:%s", str(error).splitlines()[0])
+        return None
     try:
         completed = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(clip)],
+            [ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(clip)],
             capture_output=True, text=True, timeout=30, check=False,
         )
         return float(completed.stdout.strip())
